@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HelpMe - Now Screen</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes breathe {
+            0%, 100% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.05); opacity: 1; }
+        }
+        .orb-breathe { animation: breathe 4s ease-in-out infinite; }
+    </style>
+</head>
+<body class="bg-[#F9F8F6] text-stone-800 h-screen w-screen flex flex-col relative font-sans overflow-hidden">
+
+    <!-- Top Navigation Area -->
+    <header class="flex justify-between items-center p-6 w-full absolute top-0 left-0">
+        <!-- Menu Icon -->
+        <button class="p-2 text-stone-500 hover:text-stone-800 transition-colors focus:outline-none">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+            </svg>
+        </button>
+
+        <!-- AI Status Pill -->
+        <div class="px-3 py-1 bg-stone-200 text-stone-600 text-xs font-medium rounded-full opacity-80">
+            HelpMe is watching deadlines
+        </div>
+    </header>
+
+    <!-- Main Content: AI Briefing Card -->
+    <main class="flex-1 flex items-center justify-center p-6 mt-10">
+        <div class="w-full max-w-2xl bg-white/50 backdrop-blur-sm border border-stone-200 rounded-2xl p-8 shadow-sm">
+            
+            <!-- AI Context Scan Line -->
+            <div class="text-sm text-stone-500 mb-6 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                I checked your goal, tasks, deadlines and free time.
+            </div>
+
+            <!-- AI Briefing / Main Decision -->
+            <h1 class="text-3xl font-semibold text-stone-900 leading-tight mb-4">
+                The best thing to do now is to finalize the HelpMe UX direction.
+            </h1>
+
+            <!-- Short Explanation -->
+            <p class="text-stone-600 mb-8 leading-relaxed">
+                I hid the other tasks because they do not directly unlock the next phase. Completing this lets you write the Codex spec and start the real prototype.
+            </p>
+
+            <!-- Next Best Action Card -->
+            <div class="bg-stone-100 border border-stone-200 rounded-xl p-5 mb-6">
+                <div class="text-xs font-semibold uppercase tracking-wider text-stone-500 mb-2">Next Best Action</div>
+                <h2 class="text-lg font-medium text-stone-800 mb-3">Do a 90-minute focus block to finalize Now + Review + Archive.</h2>
+                
+                <!-- Action Metadata -->
+                <div class="flex flex-wrap gap-3 text-xs text-stone-500">
+                    <span class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> 90 min</span>
+                    <span class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg> High Priority</span>
+                    <span class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"></path></svg> Build HelpMe AI life admin</span>
+                </div>
+            </div>
+
+            <!-- Reason / Risk Summary -->
+            <div class="text-sm text-stone-600 mb-8 border-l-2 border-stone-300 pl-4">
+                <span class="font-medium text-stone-800">Reason:</span> This decision prevents the product from becoming a normal dashboard app.<br>
+                <span class="font-medium text-stone-800 mt-1 inline-block">Risk:</span> If ignored, the project may drift into a todo/calendar clone.
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-col sm:flex-row gap-3 mb-8">
+                <button class="px-6 py-3 bg-stone-800 text-stone-50 font-medium rounded-lg hover:bg-stone-900 transition-colors text-sm text-center">
+                    Start focus
+                </button>
+                <button class="px-6 py-3 bg-transparent border border-stone-300 text-stone-700 font-medium rounded-lg hover:bg-stone-100 transition-colors text-sm text-center">
+                    Show hidden context
+                </button>
+                <button class="px-6 py-3 bg-transparent text-stone-500 font-medium rounded-lg hover:bg-stone-100 transition-colors text-sm text-center">
+                    Choose another task
+                </button>
+            </div>
+
+            <!-- Collapsed Summary -->
+            <div class="text-center text-xs text-stone-400 mt-4 pt-6 border-t border-stone-200">
+                5 tasks hidden · 1 deadline watched · Archive collapsed
+            </div>
+        </div>
+    </main>
+
+    <!-- Global Entry Point: AI Orb -->
+    <div class="absolute bottom-8 right-8 flex items-center justify-center cursor-pointer group">
+        <!-- Minimal Orb with breathing animation -->
+        <div class="w-14 h-14 bg-stone-400 rounded-full orb-breathe shadow-lg group-hover:bg-stone-500 transition-colors"></div>
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,605 @@
+Dưới đây là mô tả rõ ràng, có thể dùng làm **Product Description / Project Brief** cho ứng dụng **HelpMe**. Bản này viết theo hướng để người khác, AI coding agent, hoặc Codex hiểu đúng sản phẩm.
+
+---
+
+# HelpMe là gì?
+
+**HelpMe** là một ứng dụng quản trị đời sống cá nhân theo hướng **AI-first, local-first**, được thiết kế để giúp người dùng biết **ngay lúc này nên làm gì tiếp theo**, thay vì bắt người dùng tự xem dashboard, tự đọc task, tự kiểm tra deadline và tự phân tích lịch trình.
+
+HelpMe không phải là một todo app truyền thống, không phải calendar app, không phải dashboard kiểu Notion, và cũng không phải chatbot độc lập. HelpMe là một lớp AI điều phối cuộc sống cá nhân: nó đọc dữ liệu về mục tiêu, công việc, deadline, lịch rảnh và trạng thái hiện tại của người dùng, sau đó lọc nhiễu và đưa ra **một quyết định hành động rõ ràng nhất**.
+
+Cốt lõi của HelpMe là:
+
+```text
+AI đọc dữ liệu thay người dùng.
+AI lọc bớt thông tin không cần thiết.
+AI chọn việc quan trọng nhất lúc này.
+AI giải thích ngắn gọn vì sao.
+Người dùng chỉ cần xác nhận, hỏi thêm, hoặc chọn hành động khác.
+```
+
+---
+
+# Tầm nhìn sản phẩm
+
+HelpMe hướng tới việc trở thành một **AI quản trị đời sống cá nhân**, luôn âm thầm theo dõi mục tiêu, task, deadline và lịch trình của người dùng, nhưng không làm người dùng bị quá tải bởi quá nhiều thông tin.
+
+Màn hình chính của HelpMe không phải dashboard dài. Màn hình chính là **Now** — nơi AI trả lời câu hỏi:
+
+```text
+Bây giờ tôi nên làm gì?
+```
+
+Thay vì hiển thị toàn bộ danh sách task, deadline, calendar, habit, KPI và biểu đồ, HelpMe chỉ hiển thị:
+
+```text
+- AI đã xem những nguồn dữ liệu nào
+- Việc đáng làm nhất lúc này
+- Vì sao việc đó quan trọng
+- Hành động tiếp theo
+- Tóm tắt ngắn về những gì đang được ẩn
+```
+
+Các dữ liệu đầy đủ vẫn tồn tại, nhưng được đưa vào **Archive** và chỉ mở khi người dùng cần.
+
+---
+
+# Triết lý thiết kế
+
+HelpMe được thiết kế theo triết lý:
+
+```text
+AI-first, not dashboard-first.
+Show less by default.
+Reveal only when needed.
+One screen, one decision.
+The Orb is the interface.
+```
+
+Điều này có nghĩa là:
+
+1. **Không bắt người dùng đọc dashboard**
+   Người dùng không nên phải tự nhìn nhiều ô, nhiều số, nhiều danh sách để quyết định việc tiếp theo.
+
+2. **AI là lớp lọc thông tin**
+   AI phải đọc dữ liệu task, deadline, goal và calendar thay người dùng, sau đó đưa ra kết luận.
+
+3. **Mặc định ẩn thông tin**
+   Mọi thứ chưa cần thiết đều bị ẩn: task list, deadline list, calendar, activity log, navigation, context detail.
+
+4. **Chỉ hiện quyết định tiếp theo**
+   Màn Now chỉ phục vụ một câu hỏi: “việc tiếp theo đáng làm là gì?”
+
+5. **Chi tiết mở theo yêu cầu**
+   Nếu người dùng muốn hiểu thêm, họ có thể bấm “Show hidden context” hoặc hỏi AI qua Orb.
+
+6. **Orb là điểm giao tiếp AI duy nhất**
+   Không có tab Ask riêng, không có nhiều ô chat. Người dùng bấm Orb để hỏi HelpMe ở bất kỳ đâu trong app.
+
+---
+
+# HelpMe không phải là gì?
+
+HelpMe **không phải**:
+
+```text
+- Todoist clone
+- Notion dashboard
+- Google Calendar clone
+- Habit tracker truyền thống
+- Chatbot tách rời
+- Dashboard productivity nhiều ô
+- App thống kê đời sống
+```
+
+HelpMe có thể lưu task, deadline, calendar và goal, nhưng không lấy việc hiển thị dữ liệu thô làm trung tâm.
+
+HelpMe không cố trả lời:
+
+```text
+“Tất cả mọi thứ trong cuộc sống của tôi đang như thế nào?”
+```
+
+HelpMe tập trung trả lời:
+
+```text
+“Ngay bây giờ tôi nên làm gì để không bị phân tâm và vẫn đi đúng mục tiêu?”
+```
+
+---
+
+# Trải nghiệm sử dụng mong muốn
+
+Khi người dùng mở HelpMe, app không hiển thị một dashboard dài. Thay vào đó, HelpMe hiển thị một AI briefing ngắn:
+
+```text
+Tôi đã xem mục tiêu, task, deadline và thời gian rảnh của bạn.
+
+Việc đáng làm nhất bây giờ là:
+Chốt UX tối giản cho HelpMe.
+
+Lý do:
+Việc này mở khóa bước tiếp theo là viết spec cho Codex và bắt đầu prototype thật.
+
+Tôi đã ẩn 5 task khác vì chúng không phục vụ trực tiếp mục tiêu hiện tại.
+
+[Start focus] [Show hidden context] [Choose another task]
+```
+
+Nếu người dùng muốn biết thêm, họ có thể bấm Orb và hỏi:
+
+```text
+Tại sao bạn chọn việc này?
+Ẩn những task nào?
+Deadline nào đang nguy hiểm?
+Tôi có đang lệch khỏi mục tiêu không?
+Nếu chỉ có 30 phút thì nên làm gì?
+```
+
+---
+
+# Các thành phần chính của ứng dụng
+
+## 1. Now
+
+**Now** là màn hình mặc định và quan trọng nhất.
+
+Nhiệm vụ của Now là hiển thị:
+
+```text
+- AI Context Scan Line
+- AI Briefing / Main Decision
+- Short Explanation
+- Next Best Action
+- Reason / Risk Summary
+- Tối đa 3 action buttons
+- Collapsed Summary
+```
+
+Now không hiển thị:
+
+```text
+- Full task list
+- Full deadline list
+- Full calendar
+- KPI grid
+- Charts
+- Activity timeline
+- Habit dashboard
+- Goal dashboard
+```
+
+Now chỉ nên đưa ra một quyết định rõ ràng.
+
+---
+
+## 2. Orb
+
+**Orb** là điểm giao tiếp AI duy nhất trong toàn app.
+
+Orb luôn có mặt, thường ở góc dưới bên phải hoặc trên thanh trạng thái nhỏ.
+
+Người dùng bấm Orb để mở **Ask Overlay**.
+
+Orb có thể thể hiện trạng thái nhẹ:
+
+```text
+- Idle
+- Watching context
+- Thinking
+- Listening
+- Suggesting
+- Waiting quietly
+```
+
+Hiệu ứng của Orb phải nhẹ, không gây phân tâm:
+
+```text
+- Breathing animation nhẹ
+- Không 3D
+- Không particle
+- Không animation phức tạp
+```
+
+---
+
+## 3. Ask Overlay
+
+**Ask Overlay** là vùng hỏi AI, chỉ mở khi người dùng bấm Orb.
+
+Ask Overlay dùng để:
+
+```text
+- Hỏi vì sao AI chọn việc này
+- Hỏi task nào đang bị ẩn
+- Hỏi deadline nào nguy hiểm
+- Ra lệnh tạo task
+- Ra lệnh dời task
+- Yêu cầu AI lập kế hoạch lại
+```
+
+Ask Overlay không phải một tab riêng. Nó là lớp phủ toàn app.
+
+---
+
+## 4. Context Drawer
+
+**Context Drawer** là vùng hiển thị ngữ cảnh hỗ trợ quyết định của AI.
+
+Nó chỉ mở khi người dùng yêu cầu.
+
+Context Drawer có thể chứa:
+
+```text
+- North Star / Main Goal
+- Hidden task summary
+- Watched deadline summary
+- Available time / constraints
+- Reason summary
+```
+
+Context Drawer không nên biến thành dashboard nhỏ. Nó vẫn phải tóm tắt, không show quá nhiều dữ liệu thô.
+
+---
+
+## 5. Menu Dropdown
+
+Navigation không hiển thị dạng sidebar cố định.
+
+Thay vào đó, app chỉ có một icon menu. Khi bấm vào, menu xổ ra:
+
+```text
+Now
+Review
+Archive
+Settings
+```
+
+Navigation cũng bị collapse mặc định để tránh gây phân tâm.
+
+---
+
+## 6. Review
+
+**Review** dùng để tổng kết ngày, tuần hoặc mục tiêu.
+
+Review trả lời các câu hỏi:
+
+```text
+Hôm nay tôi đã làm được gì?
+Tôi bỏ lỡ điều gì?
+Tôi có đang lệch khỏi mục tiêu chính không?
+Ngày mai nên chỉnh gì?
+Tuần này pattern nào đang lặp lại?
+```
+
+Review là nơi phản tư, không phải nơi làm việc chính.
+
+---
+
+## 7. Archive
+
+**Archive** là nơi chứa dữ liệu thô.
+
+Archive có thể bao gồm:
+
+```text
+- Tasks
+- Deadlines
+- Calendar blocks
+- Goals
+- Habits
+- AI activity logs
+```
+
+Archive tồn tại để người dùng kiểm tra chi tiết khi cần, nhưng không phải màn hình chính.
+
+---
+
+## 8. Settings
+
+Settings dùng để cấu hình:
+
+```text
+- AI behavior
+- Proactivity level
+- Quiet hours
+- Notification budget
+- Local model settings
+- Visual effect level
+- Automation permissions
+```
+
+---
+
+# Chức năng AI cốt lõi
+
+AI trong HelpMe không chỉ là chatbot. AI phải làm 4 việc chính:
+
+## 1. Filter
+
+AI lọc bớt thông tin không cần thiết.
+
+Ví dụ:
+
+```text
+Có 12 task đang mở, nhưng chỉ 1 task đáng làm bây giờ.
+```
+
+## 2. Prioritize
+
+AI chọn việc quan trọng nhất dựa trên:
+
+```text
+- Mục tiêu chính
+- Deadline
+- Độ ưu tiên
+- Thời gian rảnh
+- Thời lượng ước tính
+- Task dependency
+- Trạng thái hiện tại của người dùng
+```
+
+## 3. Explain
+
+AI giải thích ngắn gọn vì sao chọn hành động đó.
+
+Ví dụ:
+
+```text
+Tôi chọn việc này vì nó mở khóa bước tiếp theo và phù hợp với thời gian rảnh hiện tại.
+```
+
+## 4. Act after confirmation
+
+AI có thể đề xuất hành động, nhưng không tự ý thay đổi dữ liệu quan trọng nếu chưa được xác nhận.
+
+Ví dụ cần xác nhận:
+
+```text
+- Dời task
+- Đổi deadline
+- Tạo nhiều task mới
+- Chọn lại mục tiêu chính
+- Ẩn task khỏi Now
+```
+
+---
+
+# Dữ liệu HelpMe cần quản lý
+
+Backend của HelpMe cần lưu các loại dữ liệu sau:
+
+```text
+- Goals
+- Tasks
+- Deadlines
+- Calendar blocks
+- AI activity logs
+- Settings
+```
+
+## Goal
+
+Dùng để biết người dùng đang theo đuổi mục tiêu nào.
+
+Ví dụ:
+
+```text
+Xây dựng HelpMe thành AI quản trị đời sống cá nhân.
+```
+
+## Task
+
+Dùng để lưu việc cần làm.
+
+Task có thể có:
+
+```text
+- title
+- description
+- status
+- priority
+- estimated_minutes
+- due_date
+- scheduled_start
+- scheduled_end
+- linked_goal
+- linked_deadline
+```
+
+## Deadline
+
+Dùng để theo dõi hạn chót quan trọng.
+
+Deadline có thể có:
+
+```text
+- title
+- due_date
+- severity
+- status
+- linked_goal
+```
+
+## Calendar Block
+
+Dùng để lưu các khối thời gian.
+
+Ví dụ:
+
+```text
+- Focus block
+- Break
+- Review block
+- External event
+```
+
+## AI Activity Log
+
+Dùng để ghi lại AI đã làm gì.
+
+Ví dụ:
+
+```text
+- Checked deadline risk
+- Prepared morning brief
+- Suggested focus block
+- Hid low-priority tasks
+```
+
+## Settings
+
+Dùng để lưu cấu hình app.
+
+Ví dụ:
+
+```text
+- proactivity_level
+- quiet_hours
+- visual_effect_mode
+- local_model
+```
+
+---
+
+# Endpoint quan trọng nhất: /now
+
+Backend nên có endpoint `/now`.
+
+Endpoint này không trả về dashboard. Nó trả về một AI briefing đã được lọc.
+
+Response mong muốn:
+
+```json
+{
+  "context_scan_line": "I checked your goal, tasks, deadlines and free time.",
+  "main_decision": "The best thing to do now is to finalize the HelpMe UX direction.",
+  "short_explanation": "I hid other tasks because they do not directly unlock the next phase.",
+  "next_best_action": {
+    "type": "task",
+    "title": "Do a 90-minute focus block to finalize Now + Review + Archive.",
+    "task_id": "task_001",
+    "duration_minutes": 90,
+    "linked_goal_id": "goal_001",
+    "metadata": {
+      "priority": "high",
+      "fits_available_time": true
+    }
+  },
+  "reason_summary": "This decision prevents the product from becoming a normal dashboard app.",
+  "risk_summary": "If ignored, the project may drift into a todo/calendar clone.",
+  "collapsed_summary": {
+    "hidden_tasks_count": 5,
+    "watched_deadlines_count": 1,
+    "open_tasks_count": 6,
+    "mode": "focus-first"
+  },
+  "suggested_actions": [
+    {
+      "label": "Start focus",
+      "action_type": "start_focus",
+      "requires_confirmation": false
+    },
+    {
+      "label": "Show hidden context",
+      "action_type": "open_context_drawer",
+      "requires_confirmation": false
+    },
+    {
+      "label": "Choose another task",
+      "action_type": "choose_alternative",
+      "requires_confirmation": false
+    }
+  ]
+}
+```
+
+---
+
+# Endpoint Ask
+
+Backend cũng cần endpoint `/ask`.
+
+Nó nhận câu hỏi của người dùng từ Orb.
+
+Ví dụ request:
+
+```json
+{
+  "message": "Tại sao bạn chọn việc này?"
+}
+```
+
+Response:
+
+```json
+{
+  "answer": "Tôi chọn việc này vì nó phục vụ mục tiêu chính và đang chặn bước tiếp theo.",
+  "intent": "explain_current_decision",
+  "related_context": {
+    "linked_goal": "Build HelpMe AI life admin",
+    "hidden_tasks_count": 5
+  },
+  "suggested_actions": [
+    {
+      "label": "Show hidden context",
+      "action_type": "open_context_drawer",
+      "requires_confirmation": false
+    }
+  ]
+}
+```
+
+---
+
+# Giao diện hiện tại nên được hiểu như wireframe
+
+Mockup hiện tại không phải thiết kế màu sắc cuối cùng. Nó là wireframe định hướng UX.
+
+Các block placeholder đại diện cho:
+
+```text
+AI Context Scan Line
+AI Briefing / Main Decision
+Short Explanation
+Next Best Action
+Reason / Risk Summary
+Collapsed Summary
+Context Drawer
+Ask Overlay
+Menu Dropdown
+```
+
+Khi code thật, dữ liệu placeholder sẽ được thay bằng response từ backend.
+
+---
+
+# Nguyên tắc triển khai ban đầu
+
+Khi bắt đầu code HelpMe, không nên xây frontend dashboard trước.
+
+Nên làm theo thứ tự:
+
+```text
+1. Backend đủ sống
+2. Seed data
+3. Endpoint /now
+4. Endpoint /ask
+5. Static frontend Now screen
+6. Nối frontend với /now
+7. Orb mở Ask Overlay
+8. Context Drawer
+9. Archive
+10. Review
+```
+
+Backend ban đầu có thể dùng rule-based logic thay vì LLM thật.
+
+Local model/Ollama có thể thêm sau.
+
+---
+
+# Tóm tắt một câu
+
+**HelpMe là một AI-first life admin app, nơi AI đọc toàn bộ dữ liệu đời sống cá nhân thay người dùng, lọc nhiễu, chọn việc đáng làm nhất lúc này, giải thích ngắn gọn, và chỉ mở chi tiết khi người dùng yêu cầu.**

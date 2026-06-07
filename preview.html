@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HelpMe Mockup v0.2</title>
+  <style>
+    :root {
+      --bg0: #070b16;
+      --bg1: #0b1220;
+      --panel: #101827;
+      --panel2: #121c2e;
+      --card: #182338;
+      --card2: #1d2a42;
+      --border: rgba(148, 163, 184, .22);
+      --text: #f8fafc;
+      --muted: #9aa8bd;
+      --muted2: #64748b;
+      --primary: #8b5cf6;
+      --primary2: #38bdf8;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --success: #22c55e;
+      --shadow: 0 28px 70px rgba(0,0,0,.42);
+      --radius: 24px;
+      --radius2: 18px;
+      --radius3: 14px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { margin: 0; min-height: 100%; }
+
+    body {
+      min-height: 100vh;
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      background:
+        radial-gradient(circle at 12% 12%, rgba(139,92,246,.32), transparent 25%),
+        radial-gradient(circle at 86% 7%, rgba(56,189,248,.19), transparent 24%),
+        linear-gradient(135deg, var(--bg0), var(--bg1) 58%, #0c1021);
+      overflow-x: hidden;
+    }
+
+    .screen {
+      width: min(1440px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 18px;
+      display: grid;
+      grid-template-columns: 230px minmax(640px, 1fr) 330px;
+      gap: 18px;
+    }
+
+    .glass {
+      background: linear-gradient(180deg, rgba(18,28,46,.94), rgba(13,20,34,.92));
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+    }
+
+    .sidebar {
+      border-radius: var(--radius);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      min-height: calc(100vh - 36px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      width: 44px; height: 44px;
+      border-radius: 16px;
+      display: grid; place-items: center;
+      background: conic-gradient(from 210deg, #8b5cf6, #38bdf8, #22c55e, #8b5cf6);
+      color: white;
+      font-weight: 900;
+      box-shadow: 0 0 36px rgba(139,92,246,.55);
+    }
+
+    .brand-title { font-size: 18px; font-weight: 850; letter-spacing: -.03em; }
+    .brand-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    .nav { display: grid; gap: 8px; margin-top: 22px; }
+    .nav a {
+      color: var(--muted);
+      text-decoration: none;
+      padding: 12px 12px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      transition: .16s ease;
+    }
+    .nav a span:first-child {
+      width: 28px; height: 28px;
+      display: grid; place-items: center;
+      border-radius: 10px;
+      background: rgba(148,163,184,.08);
+    }
+    .nav a.active,
+    .nav a:hover {
+      color: white;
+      background: linear-gradient(90deg, rgba(139,92,246,.25), rgba(56,189,248,.08));
+    }
+
+    .local-box {
+      margin-top: auto;
+      padding: 14px;
+      border-radius: 18px;
+      background: rgba(34,197,94,.09);
+      border: 1px solid rgba(34,197,94,.22);
+    }
+
+    .local-row {
+      display: flex; align-items: center; gap: 9px;
+      color: #bbf7d0; font-size: 13px; font-weight: 700;
+    }
+
+    .dot {
+      width: 8px; height: 8px; border-radius: 99px;
+      background: var(--success);
+      box-shadow: 0 0 16px rgba(34,197,94,.8);
+    }
+
+    .local-note {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      margin-top: 8px;
+    }
+
+    .main {
+      min-width: 0;
+      display: grid;
+      gap: 18px;
+      align-content: start;
+    }
+
+    .hero {
+      border-radius: var(--radius);
+      padding: 24px;
+      position: relative;
+      overflow: hidden;
+      min-height: 180px;
+      background:
+        linear-gradient(135deg, rgba(139,92,246,.18), rgba(56,189,248,.08) 42%, rgba(18,28,46,.95)),
+        linear-gradient(180deg, rgba(18,28,46,.96), rgba(13,20,34,.92));
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -90px; top: -110px;
+      width: 310px; height: 310px;
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(139,92,246,.30), transparent 64%);
+      pointer-events: none;
+    }
+
+    .eyebrow {
+      color: var(--primary2);
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: .15em;
+      font-weight: 850;
+      margin: 0 0 10px;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+    h1 { font-size: 36px; letter-spacing: -.055em; line-height: 1.05; }
+    h2 { font-size: 19px; letter-spacing: -.035em; }
+    h3 { font-size: 15px; letter-spacing: -.02em; }
+
+    .hero p.desc {
+      color: #cbd5e1;
+      max-width: 680px;
+      line-height: 1.6;
+      margin-top: 12px;
+      font-size: 15px;
+    }
+
+    .hero-actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+
+    button {
+      border: 0;
+      color: white;
+      border-radius: 14px;
+      cursor: pointer;
+      font: inherit;
+      transition: .16s ease;
+    }
+
+    button:hover { transform: translateY(-1px); filter: brightness(1.08); }
+
+    .btn-primary {
+      padding: 11px 15px;
+      background: linear-gradient(135deg, #8b5cf6, #6366f1);
+      box-shadow: 0 12px 30px rgba(139,92,246,.25);
+    }
+
+    .btn-ghost {
+      padding: 11px 15px;
+      background: rgba(148,163,184,.09);
+      border: 1px solid var(--border);
+      color: #dbeafe;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+
+    .kpi {
+      border-radius: 20px;
+      padding: 16px;
+      background: linear-gradient(180deg, rgba(24,35,56,.95), rgba(18,28,46,.92));
+      border: 1px solid var(--border);
+      box-shadow: 0 14px 42px rgba(0,0,0,.26);
+      min-height: 118px;
+    }
+
+    .kpi .label {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+
+    .kpi .value {
+      font-weight: 900;
+      font-size: 30px;
+      letter-spacing: -.045em;
+      margin-bottom: 5px;
+    }
+
+    .kpi .hint { color: var(--muted); font-size: 12px; }
+    .kpi.red { border-color: rgba(239,68,68,.34); }
+    .kpi.orange { border-color: rgba(245,158,11,.34); }
+    .kpi.green { border-color: rgba(34,197,94,.30); }
+
+    .content-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.28fr) minmax(290px, .72fr);
+      gap: 18px;
+    }
+
+    .card {
+      border-radius: var(--radius);
+      padding: 18px;
+      background: linear-gradient(180deg, rgba(24,35,56,.96), rgba(16,24,39,.94));
+      border: 1px solid var(--border);
+      box-shadow: 0 20px 55px rgba(0,0,0,.32);
+    }
+
+    .card-head {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .mini-btn {
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      background: rgba(148,163,184,.08);
+      color: #e2e8f0;
+      font-size: 13px;
+      border-radius: 12px;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 12px;
+      position: relative;
+    }
+
+    .time-block {
+      display: grid;
+      grid-template-columns: 62px 1fr;
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .time {
+      color: var(--muted);
+      font-size: 13px;
+      padding-top: 15px;
+      text-align: right;
+    }
+
+    .block {
+      min-height: 72px;
+      border-radius: 17px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      background: rgba(29,42,66,.86);
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .block::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 4px;
+      background: var(--primary);
+    }
+
+    .block.urgent::before { background: var(--danger); }
+    .block.break::before { background: var(--success); }
+    .block.review::before { background: var(--primary2); }
+
+    .block-title { font-weight: 800; margin-bottom: 5px; }
+    .block-meta { color: var(--muted); font-size: 13px; }
+    .pill {
+      height: max-content;
+      white-space: nowrap;
+      padding: 5px 8px;
+      border-radius: 999px;
+      background: rgba(139,92,246,.16);
+      color: #ddd6fe;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .pill.red { background: rgba(239,68,68,.14); color: #fecaca; }
+    .pill.green { background: rgba(34,197,94,.12); color: #bbf7d0; }
+    .pill.orange { background: rgba(245,158,11,.14); color: #fde68a; }
+
+    .suggestion-box {
+      border-radius: 20px;
+      padding: 16px;
+      background: linear-gradient(135deg, rgba(139,92,246,.18), rgba(56,189,248,.08));
+      border: 1px solid rgba(139,92,246,.28);
+      margin-bottom: 14px;
+    }
+
+    .suggestion-box p {
+      color: #dbeafe;
+      line-height: 1.55;
+      font-size: 14px;
+      margin-top: 9px;
+    }
+
+    .task-list, .deadline-list, .activity-feed { display: grid; gap: 10px; }
+
+    .task {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 13px;
+      border-radius: 16px;
+      background: rgba(15,23,42,.45);
+      border: 1px solid var(--border);
+    }
+
+    .check {
+      width: 20px; height: 20px;
+      border-radius: 7px;
+      border: 1px solid rgba(148,163,184,.45);
+      margin-top: 1px;
+      flex: 0 0 auto;
+    }
+
+    .task strong { display: block; font-size: 14px; }
+    .task small { display: block; margin-top: 5px; color: var(--muted); }
+
+    .deadline {
+      padding: 13px;
+      border-radius: 17px;
+      background: rgba(15,23,42,.45);
+      border: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .deadline strong { display: block; font-size: 14px; }
+    .deadline small { display: block; margin-top: 5px; color: var(--muted); }
+    .deadline.high { border-color: rgba(239,68,68,.34); }
+    .deadline.medium { border-color: rgba(245,158,11,.28); }
+
+    .ai-panel {
+      border-radius: var(--radius);
+      padding: 18px;
+      min-height: calc(100vh - 36px);
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      position: sticky;
+      top: 18px;
+      overflow: hidden;
+    }
+
+    .ai-panel::before {
+      content: "";
+      position: absolute;
+      inset: -90px -100px auto auto;
+      width: 260px;
+      height: 260px;
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(139,92,246,.22), transparent 67%);
+      pointer-events: none;
+    }
+
+    .orb-zone {
+      height: 172px;
+      display: grid;
+      place-items: center;
+      position: relative;
+    }
+
+    .orb {
+      width: 92px; height: 92px;
+      border-radius: 999px;
+      background:
+        radial-gradient(circle at 32% 28%, rgba(255,255,255,.95), transparent 10%),
+        radial-gradient(circle at 38% 35%, #c4b5fd, #8b5cf6 40%, #38bdf8 72%, #1e1b4b);
+      box-shadow:
+        0 0 24px rgba(139,92,246,.8),
+        0 0 64px rgba(56,189,248,.35),
+        inset 0 0 25px rgba(255,255,255,.22);
+      animation: pulse 3.2s ease-in-out infinite;
+      z-index: 2;
+    }
+
+    .orb::after {
+      content: "";
+      position: absolute;
+      inset: -16px;
+      border-radius: inherit;
+      border: 1px solid rgba(139,92,246,.22);
+    }
+
+    .ring {
+      position: absolute;
+      width: 102px; height: 102px;
+      border-radius: 999px;
+      border: 1px solid rgba(139,92,246,.28);
+      animation: ring 3.2s ease-out infinite;
+    }
+
+    .ring.r2 { animation-delay: 1.2s; }
+
+    @keyframes pulse {
+      0%,100% { transform: scale(1); filter: brightness(1); }
+      50% { transform: scale(1.05); filter: brightness(1.15); }
+    }
+
+    @keyframes ring {
+      from { transform: scale(.9); opacity: .7; }
+      to { transform: scale(1.75); opacity: 0; }
+    }
+
+    .ai-name {
+      text-align: center;
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: -.04em;
+      margin-top: -8px;
+    }
+
+    .ai-status {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 9px;
+      color: #cbd5e1;
+      font-size: 13px;
+      margin-top: -8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .ai-card {
+      border-radius: 20px;
+      padding: 15px;
+      background: rgba(15,23,42,.45);
+      border: 1px solid var(--border);
+    }
+
+    .ai-card.primary {
+      background: linear-gradient(180deg, rgba(139,92,246,.17), rgba(15,23,42,.48));
+      border-color: rgba(139,92,246,.28);
+    }
+
+    .ai-card p {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+      margin-top: 8px;
+    }
+
+    .ai-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 13px;
+    }
+
+    .ai-actions button, .quick button {
+      padding: 9px 10px;
+      border-radius: 12px;
+      background: rgba(148,163,184,.09);
+      border: 1px solid var(--border);
+      color: #e2e8f0;
+      font-size: 13px;
+      text-align: left;
+    }
+
+    .quick { display: grid; gap: 8px; }
+
+    .activity-item {
+      display: grid;
+      grid-template-columns: 44px 1fr;
+      gap: 9px;
+      align-items: start;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(148,163,184,.10);
+    }
+
+    .activity-item:last-child { border-bottom: 0; }
+    .activity-item time { color: var(--primary2); font-size: 12px; font-weight: 850; }
+    .activity-item span { color: var(--muted); font-size: 13px; line-height: 1.4; }
+
+    .settings-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(148,163,184,.11);
+    }
+
+    .settings-row:last-child { border-bottom: 0; }
+    .settings-row strong { font-size: 14px; }
+    .settings-row small { color: var(--muted); display: block; margin-top: 4px; }
+    .toggle {
+      width: 42px; height: 24px; border-radius: 999px;
+      background: rgba(139,92,246,.35);
+      border: 1px solid rgba(139,92,246,.42);
+      position: relative;
+      flex: 0 0 auto;
+    }
+    .toggle::after {
+      content: "";
+      width: 18px; height: 18px; border-radius: 999px;
+      background: white;
+      position: absolute;
+      top: 2px; right: 3px;
+    }
+
+    .mobile-note {
+      display: none;
+      margin-bottom: 10px;
+      padding: 12px;
+      color: #fde68a;
+      background: rgba(245,158,11,.12);
+      border: 1px solid rgba(245,158,11,.22);
+      border-radius: 14px;
+      font-size: 13px;
+    }
+
+    @media (max-width: 1220px) {
+      .screen { grid-template-columns: 210px 1fr; }
+      .ai-panel { grid-column: 1 / -1; min-height: auto; position: static; }
+      .ai-panel { display: grid; grid-template-columns: 210px repeat(3, 1fr); align-items: center; }
+      .orb-zone { height: 125px; }
+      .ai-name, .ai-status { grid-column: 1; }
+      .ai-status { border-bottom: 0; padding-bottom: 0; }
+    }
+
+    @media (max-width: 900px) {
+      .mobile-note { display: block; }
+      .screen { grid-template-columns: 1fr; padding: 12px; }
+      .sidebar { min-height: auto; }
+      .nav { grid-template-columns: repeat(3, 1fr); }
+      .kpi-grid, .content-grid { grid-template-columns: 1fr; }
+      .ai-panel { grid-template-columns: 1fr; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, .orb, .ring { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="screen">
+    <aside class="sidebar glass">
+      <div class="brand">
+        <div class="logo">H</div>
+        <div>
+          <div class="brand-title">HelpMe</div>
+          <div class="brand-sub">Local AI Life Admin</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <a class="active" href="#"><span>⌂</span>Dashboard</a>
+        <a href="#"><span>◷</span>Today</a>
+        <a href="#"><span>✓</span>Tasks</a>
+        <a href="#"><span>!</span>Deadlines</a>
+        <a href="#"><span>◌</span>AI Activity</a>
+        <a href="#"><span>⚙</span>Settings</a>
+      </nav>
+
+      <div class="local-box">
+        <div class="local-row"><span class="dot"></span>Local mode active</div>
+        <div class="local-note">Rule engine is monitoring reminders. Local model is called only when needed.</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="mobile-note">Mockup responsive: trên màn hình nhỏ, các panel sẽ xếp dọc. Trên desktop sẽ thấy layout 3 cột.</div>
+
+      <section class="hero">
+        <p class="eyebrow">Dashboard</p>
+        <h1>Good evening, Tuấn.</h1>
+        <p class="desc">
+          HelpMe has prepared your evening plan. You have one high-risk deadline and about
+          two and a half hours of usable focus time.
+        </p>
+        <div class="hero-actions">
+          <button class="btn-primary">Plan my evening</button>
+          <button class="btn-ghost">Start focus</button>
+          <button class="btn-ghost">Review deadlines</button>
+        </div>
+      </section>
+
+      <section class="kpi-grid">
+        <article class="kpi">
+          <div class="label">Tasks today</div>
+          <div class="value">4</div>
+          <div class="hint">2 scheduled · 2 unscheduled</div>
+        </article>
+        <article class="kpi orange">
+          <div class="label">Deadline risk</div>
+          <div class="value">High</div>
+          <div class="hint">Mockup deadline tomorrow</div>
+        </article>
+        <article class="kpi green">
+          <div class="label">Free time</div>
+          <div class="value">2h 30m</div>
+          <div class="hint">Available this evening</div>
+        </article>
+        <article class="kpi red">
+          <div class="label">Overload</div>
+          <div class="value">+45m</div>
+          <div class="hint">Too much planned today</div>
+        </article>
+      </section>
+
+      <section class="content-grid">
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Today Timeline</p>
+              <h2>Suggested evening schedule</h2>
+            </div>
+            <button class="mini-btn">Edit plan</button>
+          </div>
+
+          <div class="timeline">
+            <div class="time-block">
+              <div class="time">20:00</div>
+              <div class="block urgent">
+                <div>
+                  <div class="block-title">Write HelpMe UI mockup</div>
+                  <div class="block-meta">Urgent · Due today · 90 minutes</div>
+                </div>
+                <span class="pill red">Focus</span>
+              </div>
+            </div>
+
+            <div class="time-block">
+              <div class="time">21:30</div>
+              <div class="block break">
+                <div>
+                  <div class="block-title">Break</div>
+                  <div class="block-meta">10 minutes · reset before study block</div>
+                </div>
+                <span class="pill green">Break</span>
+              </div>
+            </div>
+
+            <div class="time-block">
+              <div class="time">21:40</div>
+              <div class="block">
+                <div>
+                  <div class="block-title">Study AWS Security</div>
+                  <div class="block-meta">High priority · 45 minutes</div>
+                </div>
+                <span class="pill">Study</span>
+              </div>
+            </div>
+
+            <div class="time-block">
+              <div class="time">22:30</div>
+              <div class="block review">
+                <div>
+                  <div class="block-title">Evening Review</div>
+                  <div class="block-meta">15 minutes · move unfinished tasks</div>
+                </div>
+                <span class="pill">Review</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <section class="main-side">
+          <article class="suggestion-box">
+            <p class="eyebrow">AI Recommendation</p>
+            <h2>Keep only two focus blocks</h2>
+            <p>
+              Your plan is slightly overloaded. Finish the HelpMe mockup first,
+              then do a shorter AWS study session. Move low-priority tasks to tomorrow.
+            </p>
+            <div class="hero-actions">
+              <button class="btn-primary">Apply</button>
+              <button class="btn-ghost">Adjust</button>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card-head">
+              <div>
+                <p class="eyebrow">Task Inbox</p>
+                <h2>Open tasks</h2>
+              </div>
+            </div>
+
+            <div class="task-list">
+              <div class="task">
+                <div class="check"></div>
+                <div><strong>Write HelpMe UI mockup</strong><small>Urgent · Due today · 90m</small></div>
+              </div>
+              <div class="task">
+                <div class="check"></div>
+                <div><strong>Study AWS Security</strong><small>High · Tomorrow · 45m</small></div>
+              </div>
+              <div class="task">
+                <div class="check"></div>
+                <div><strong>Clean task inbox</strong><small>Medium · No deadline · 20m</small></div>
+              </div>
+            </div>
+          </article>
+        </section>
+      </section>
+
+      <section class="content-grid">
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Deadline Radar</p>
+              <h2>Risk-based deadline view</h2>
+            </div>
+          </div>
+
+          <div class="deadline-list">
+            <div class="deadline high">
+              <div><strong>Finish HelpMe mockup</strong><small>Due tomorrow · Work scheduled · High risk</small></div>
+              <span class="pill red">High</span>
+            </div>
+            <div class="deadline medium">
+              <div><strong>AWS study checkpoint</strong><small>Due in 3 days · No work block yet</small></div>
+              <span class="pill orange">Medium</span>
+            </div>
+            <div class="deadline">
+              <div><strong>Weekly personal review</strong><small>Due this week · Low risk</small></div>
+              <span class="pill green">Low</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Settings Preview</p>
+              <h2>AI behavior</h2>
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div><strong>Proactivity</strong><small>Medium: suggest, do not auto-change</small></div>
+            <span class="pill">Medium</span>
+          </div>
+          <div class="settings-row">
+            <div><strong>Quiet hours</strong><small>23:30 - 07:30</small></div>
+            <div class="toggle"></div>
+          </div>
+          <div class="settings-row">
+            <div><strong>Lightweight effects</strong><small>CSS-only animation enabled</small></div>
+            <div class="toggle"></div>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <aside class="ai-panel glass">
+      <div class="orb-zone">
+        <div class="ring"></div>
+        <div class="ring r2"></div>
+        <div class="orb"></div>
+      </div>
+
+      <div class="ai-name">HelpMe</div>
+      <div class="ai-status"><span class="dot"></span>Observing your day</div>
+
+      <article class="ai-card primary">
+        <p class="eyebrow">Suggestion</p>
+        <h3>Your evening is slightly overloaded</h3>
+        <p>You have 4 tasks and 2h 30m free. I suggest keeping two focus blocks and moving the rest.</p>
+        <div class="ai-actions">
+          <button>View plan</button>
+          <button>Dismiss</button>
+        </div>
+      </article>
+
+      <article class="ai-card">
+        <p class="eyebrow">Quick Actions</p>
+        <div class="quick">
+          <button>Plan my day</button>
+          <button>Add task</button>
+          <button>Review deadlines</button>
+          <button>Start focus</button>
+        </div>
+      </article>
+
+      <article class="ai-card">
+        <p class="eyebrow">AI Activity</p>
+        <div class="activity-feed">
+          <div class="activity-item"><time>07:30</time><span>Prepared your morning brief</span></div>
+          <div class="activity-item"><time>19:45</time><span>Detected evening workload risk</span></div>
+          <div class="activity-item"><time>20:05</time><span>Suggested a focus session</span></div>
+          <div class="activity-item"><time>22:30</time><span>Evening review is scheduled</span></div>
+        </div>
+      </article>
+    </aside>
+  </div>
+</body>
+</html>
