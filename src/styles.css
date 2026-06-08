@@ -907,6 +907,16 @@ p {
   line-height: 1;
 }
 
+.settings-note {
+  padding: 12px 14px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.42;
+}
+
 .metric[data-tone="warn"] {
   border-color: rgba(178, 92, 42, 0.48);
   background: #fff6ef;

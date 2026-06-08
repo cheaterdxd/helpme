@@ -63,7 +63,7 @@ function TodayView({ data, onCommand }: { data: AppData; onCommand: (message: st
         title={data.today.greeting}
         body={data.today.overload.message}
         actionLabel="Plan 20-23"
-        onAction={() => onCommand("Hôm nay tôi rảnh từ 20h đến 23h, sắp lịch giúp tôi")}
+        onAction={() => onCommand("Hom nay toi ranh tu 20h den 23h, sap lich giup toi")}
       />
 
       <div className="metric-strip">
@@ -156,7 +156,7 @@ function CalendarView({ data, onCommand }: { data: AppData; onCommand: (message:
         title="Time blocks for the current day"
         body="Calendar shows the plan HelpMe can validate before writing changes."
         actionLabel="Re-plan"
-        onAction={() => onCommand("Plan today from 20h to 23h")}
+        onAction={() => onCommand("Hom nay toi ranh tu 20h den 23h, sap lich giup toi")}
       />
 
       <div className="calendar-rail">
@@ -313,18 +313,19 @@ function SettingsView({ data }: { data: AppData }) {
 
       <div className="settings-grid">
         <div>
-          <span>Ollama</span>
-          <strong>{data.aiStatus.ok ? "Online" : "Offline"}</strong>
+          <span>Ollama daemon</span>
+          <strong>{data.aiStatus.online ? "Online" : "Offline"}</strong>
         </div>
         <div>
-          <span>Model</span>
-          <strong>{data.aiStatus.model}</strong>
+          <span>Model ready</span>
+          <strong>{data.aiStatus.model_available ? "Ready" : "Missing"}</strong>
         </div>
         <div>
-          <span>Latency</span>
-          <strong>{data.aiStatus.latency_ms}ms</strong>
+          <span>Fallback</span>
+          <strong>{data.aiStatus.ok ? "Ollama" : data.aiStatus.fallback_mode}</strong>
         </div>
       </div>
+      {!data.aiStatus.ok && <p className="settings-note">{data.aiStatus.error ?? data.aiStatus.setup_hint}</p>}
     </section>
   );
 }

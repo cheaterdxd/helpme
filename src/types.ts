@@ -275,13 +275,18 @@ export type ReviewData = {
 };
 
 export type AiStatus = {
+  provider: string;
   ok: boolean;
+  online: boolean;
   model: string;
+  configured_model: string;
   base_url: string;
+  fallback_mode: string;
+  setup_hint: string;
   latency_ms: number;
   models?: string[];
   model_available?: boolean;
-  error?: string;
+  error?: string | null;
 };
 
 export type AiActionProposal = {

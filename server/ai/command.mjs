@@ -16,7 +16,7 @@ export const aiCommandRequestSchema = z.object({
   message: z.string().trim().min(1)
 });
 
-const plannerSummarySchema = {
+const plannerSummaryJsonSchema = {
   type: "object",
   properties: {
     summary: { type: "string" },
@@ -24,6 +24,11 @@ const plannerSummarySchema = {
   },
   required: ["summary", "reason"]
 };
+
+const plannerSummaryValidator = z.object({
+  summary: z.string().trim().min(1).max(280),
+  reason: z.string().trim().min(1).max(320)
+});
 
 export async function handleAiCommand(rawMessage) {
   const message = rawMessage.trim();
@@ -34,7 +39,7 @@ export async function handleAiCommand(rawMessage) {
     return {
       mode: "proposal",
       intent: "organize_inbox",
-      answer: "Tôi đã phân nhóm inbox. Xác nhận thì tôi mới chuyển các task ra khỏi inbox.",
+      answer: "I grouped the inbox. I will only move tasks after confirmation.",
       proposal,
       related_context: { groups }
     };
@@ -48,11 +53,12 @@ export async function handleAiCommand(rawMessage) {
     return {
       mode: "proposal",
       intent: "plan_day",
-      answer: enriched?.summary ?? `Tôi đã tạo một kế hoạch trong khung ${window.availableStart}-${window.availableEnd}.`,
+      answer: enriched.summary ?? `I prepared a plan for ${window.availableStart}-${window.availableEnd}.`,
       proposal,
       related_context: {
         blocks,
-        reason: enriched?.reason ?? "Rule-based planner chọn task theo deadline, priority và effort."
+        reason: enriched.reason ?? "Rule-based planner selected tasks by deadline, priority, and effort.",
+        ai: enriched.ai
       }
     };
   }
@@ -64,7 +70,7 @@ export async function handleAiCommand(rawMessage) {
     return {
       mode: "proposal",
       intent: "create_task",
-      answer: "Tôi đã hiểu task mới. Xác nhận thì tôi mới thêm vào SQLite.",
+      answer: "I understood the new task. I will only add it to SQLite after confirmation.",
       proposal,
       related_context: parsed
     };
@@ -73,7 +79,7 @@ export async function handleAiCommand(rawMessage) {
   if (looksLikeRescheduleCommand(normalized)) {
     const focus = getTodayView().suggested_focus;
     if (!focus) {
-      return readOnlyAnswer("reschedule_task", "Tôi chưa tìm thấy task phù hợp để dời.", {});
+      return readOnlyAnswer("reschedule_task", "I could not find a suitable task to reschedule.", {});
     }
 
     const scheduledStart = parseRelativeTomorrowAt(message) ?? `${addDays(getTodayDate(), 1)}T20:00:00+07:00`;
@@ -86,7 +92,7 @@ export async function handleAiCommand(rawMessage) {
     return {
       mode: "proposal",
       intent: "reschedule_task",
-      answer: "Tôi đã chuẩn bị đề xuất dời task ưu tiên. Xác nhận thì tôi mới cập nhật lịch.",
+      answer: "I prepared a reschedule proposal. I will only update the calendar after confirmation.",
       proposal,
       related_context: { task_id: focus.task_id, scheduled_start: scheduledStart }
     };
@@ -98,8 +104,8 @@ export async function handleAiCommand(rawMessage) {
     return readOnlyAnswer(
       "deadline_radar",
       urgentCount
-        ? `Có ${urgentCount} deadline cần chú ý ngay. Tôi đã nhóm theo quá hạn, hôm nay, tuần này và sau đó.`
-        : "Chưa có deadline nào cần xử lý ngay hôm nay.",
+        ? `There are ${urgentCount} deadline items that need attention now.`
+        : "There is no deadline that needs immediate action today.",
       radar
     );
   }
@@ -121,16 +127,18 @@ export async function handleAiCommand(rawMessage) {
   if (focus) {
     return readOnlyAnswer(
       "explain_priority",
-      `Tôi đang ưu tiên "${focus.title}" vì nó có điểm ${focus.score}: ${focus.reason}`,
+      `I am prioritizing "${focus.title}" because it scores ${focus.score}: ${focus.reason}`,
       {
         task_id: focus.id,
         score: focus.score,
-        reason: focus.reason
+        score_breakdown: focus.score_breakdown,
+        reason: focus.reason,
+        risk: focus.risk_summary
       }
     );
   }
 
-  return readOnlyAnswer("fallback", "Tôi chưa đủ dữ liệu để đề xuất hành động tiếp theo.", {});
+  return readOnlyAnswer("fallback", "I do not have enough context to recommend a next action yet.", {});
 }
 
 function readOnlyAnswer(intent, answer, relatedContext) {
@@ -174,11 +182,11 @@ function parseCreateTask(message) {
   const date = normalized.includes("ngay mai") || normalized.includes("tomorrow") ? addDays(getTodayDate(), 1) : getTodayDate();
   const scheduledStart = time ? `${date}T${time}:00+07:00` : null;
   const cleanedTitle = message
-    .replace(/nhac toi|nhắc tôi|them task|thêm task|tao task|tạo task|add task/gi, "")
-    .replace(/toi mai|tối mai|ngay mai|ngày mai|tomorrow/gi, "")
-    .replace(/luc|lúc|at/gi, "")
+    .replace(/nhac toi|them task|tao task|add task/gi, "")
+    .replace(/toi mai|ngay mai|tomorrow/gi, "")
+    .replace(/luc|at/gi, "")
     .replace(/\d{1,2}(:\d{2})?\s*h?/gi, "")
-    .replace(/trong\s+\d+\s*(phut|phút|gio|giờ|tieng|tiếng|h)/gi, "")
+    .replace(/trong\s+\d+\s*(phut|gio|tieng|h)/gi, "")
     .trim();
 
   return {
@@ -220,10 +228,10 @@ function parseFirstTime(message) {
 }
 
 function parseDurationMinutes(message) {
-  const hourMatch = message.match(/(\d+)\s*(gio|giờ|tieng|tiếng|h)\b/i);
+  const hourMatch = message.match(/(\d+)\s*(gio|tieng|h)\b/i);
   if (hourMatch) return Number(hourMatch[1]) * 60;
 
-  const minuteMatch = message.match(/(\d+)\s*(phut|phút|m)\b/i);
+  const minuteMatch = message.match(/(\d+)\s*(phut|m)\b/i);
   if (minuteMatch) return Number(minuteMatch[1]);
 
   return null;
@@ -246,17 +254,36 @@ async function enrichPlanSummary(message, blocks) {
 
   const result = await runOllamaJson({
     prompt,
-    schema: plannerSummarySchema,
+    schema: plannerSummaryJsonSchema,
+    validator: plannerSummaryValidator,
     timeoutMs: 2500
   });
 
-  if (!result.ok || typeof result.value?.summary !== "string") {
-    return null;
+  if (!result.ok) {
+    return {
+      summary: null,
+      reason: null,
+      ai: buildFallbackAiMeta(result.error, result.run_id)
+    };
   }
 
   return {
     summary: result.value.summary,
-    reason: typeof result.value.reason === "string" ? result.value.reason : ""
+    reason: result.value.reason,
+    ai: {
+      provider: "ollama",
+      used_fallback: false,
+      run_id: result.run_id
+    }
+  };
+}
+
+function buildFallbackAiMeta(error, runId = null) {
+  return {
+    provider: "rule-based",
+    used_fallback: true,
+    fallback_reason: error ?? "Ollama did not return a valid planner summary.",
+    run_id: runId
   };
 }
 
