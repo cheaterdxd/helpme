@@ -60,6 +60,20 @@ export async function logHabitToday(habitId: string) {
   return postEmpty(`/api/habits/${habitId}/log`, "HelpMe could not log this habit.");
 }
 
+export async function startFocusSession(taskId: string) {
+  return postEmpty(`/api/tasks/${taskId}/focus/start`, "HelpMe could not start focus.");
+}
+
+export async function completeFocusSession(sessionId: string, completeTask = false) {
+  return requestJson(`/api/focus-sessions/${sessionId}/complete`, "HelpMe could not complete focus.", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ complete_task: completeTask })
+  });
+}
+
 function postEmpty<T = unknown>(url: string, errorMessage: string) {
   return requestJson<T>(url, errorMessage, {
     method: "POST",

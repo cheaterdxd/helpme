@@ -939,6 +939,16 @@ p {
   box-shadow: 0 18px 56px rgba(155, 179, 62, 0.14);
 }
 
+.focus-band[data-mode="active"] {
+  border-color: rgba(49, 93, 145, 0.4);
+  background: linear-gradient(180deg, #f3f8ff, #e7f0fb);
+  box-shadow: 0 18px 56px rgba(49, 93, 145, 0.12);
+}
+
+.focus-band[data-mode="active"] .focus-band-icon {
+  color: var(--accent-2);
+}
+
 .focus-band h2 {
   font-size: 21px;
   line-height: 1.18;
@@ -950,7 +960,9 @@ p {
 }
 
 .focus-actions {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   justify-items: end;
   gap: 8px;
 }
@@ -1312,6 +1324,7 @@ p {
   .focus-actions {
     grid-column: 2;
     justify-self: start;
+    justify-content: flex-start;
   }
 
   .planner-card {

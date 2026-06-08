@@ -16,6 +16,7 @@ export function getTodayView() {
   const deadlines = selectDeadlines();
   const timeBlocks = selectTimeBlocksForDate(today);
   const events = selectCalendarEventsForDate(today);
+  const focusSession = selectActiveFocusSession();
   const plannedMinutes = sumMinutes(timeBlocks);
   const availableMinutes = availableMinutesForDate(today);
   const planner = createPlannerDecision({ tasks, deadlines, today, availableMinutes });
@@ -48,6 +49,7 @@ export function getTodayView() {
           project_title: focus.project_title
         }
       : null,
+    focus_session: focusSession,
     planner: {
       mode: planner.mode,
       selected_task_id: planner.selected_task_id,
@@ -400,6 +402,71 @@ export function reopenTask(taskId) {
   return { ok: true, task_id: taskId, status: "todo" };
 }
 
+export function startFocusSession(taskId, options = {}) {
+  const task = selectTasks().find((item) => item.id === taskId);
+  if (!task) {
+    return { ok: false, status_code: 404, error: "Task not found." };
+  }
+
+  if (DONE_TASK_STATUSES.includes(task.status) || task.status === "cancelled") {
+    return { ok: false, status_code: 400, error: "Task is not available for focus." };
+  }
+
+  const activeSession = selectActiveFocusSession();
+  if (activeSession) {
+    if (activeSession.task_id === taskId) {
+      return { ok: true, session: activeSession, unchanged: true };
+    }
+
+    return { ok: false, status_code: 409, error: "A focus session is already active.", session: activeSession };
+  }
+
+  const now = new Date().toISOString();
+  const sessionId = `focus_${randomUUID()}`;
+  const durationMinutes = Math.max(Number(options.durationMinutes ?? task.estimated_minutes ?? 30), 5);
+
+  sqlite.transaction(() => {
+    sqlite
+      .prepare(
+        `INSERT INTO focus_sessions (
+          id, task_id, title, start_at, end_at, duration_minutes, status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, NULL, ?, 'active', ?, ?)`
+      )
+      .run(sessionId, taskId, task.title, now, durationMinutes, now, now);
+    sqlite.prepare("UPDATE tasks SET status = 'in_focus', updated_at = ? WHERE id = ?").run(now, taskId);
+  })();
+
+  return { ok: true, session: selectFocusSession(sessionId) };
+}
+
+export function completeFocusSession(sessionId, options = {}) {
+  const session = selectFocusSession(sessionId);
+  if (!session) {
+    return { ok: false, status_code: 404, error: "Focus session not found." };
+  }
+
+  if (session.status === "completed") {
+    return { ok: true, session, unchanged: true };
+  }
+
+  const now = new Date().toISOString();
+  const completeTask = options.completeTask === true;
+
+  sqlite.transaction(() => {
+    sqlite
+      .prepare("UPDATE focus_sessions SET status = 'completed', end_at = COALESCE(end_at, ?), updated_at = ? WHERE id = ?")
+      .run(now, now, sessionId);
+
+    if (session.task_id && completeTask) {
+      sqlite.prepare("UPDATE tasks SET status = 'done', updated_at = ? WHERE id = ?").run(now, session.task_id);
+    } else if (session.task_id) {
+      sqlite.prepare("UPDATE tasks SET status = 'todo', updated_at = ? WHERE id = ? AND status = 'in_focus'").run(now, session.task_id);
+    }
+  })();
+
+  return { ok: true, session: selectFocusSession(sessionId) };
+}
+
 export function logHabitToday(habitId) {
   const habit = sqlite.prepare("SELECT id, title, streak FROM habits WHERE id = ? AND status = 'active'").get(habitId);
   if (!habit) {
@@ -562,6 +629,34 @@ function selectCalendarEventsForDate(date) {
        ORDER BY start_at ASC`
     )
     .all(date);
+}
+
+function selectActiveFocusSession() {
+  return sqlite
+    .prepare(
+      `SELECT fs.*, t.title AS task_title, t.status AS task_status, g.title AS goal_title, p.title AS project_title
+       FROM focus_sessions fs
+       LEFT JOIN tasks t ON t.id = fs.task_id
+       LEFT JOIN goals g ON g.id = t.goal_id
+       LEFT JOIN projects p ON p.id = t.project_id
+       WHERE fs.status = 'active'
+       ORDER BY fs.start_at DESC, fs.created_at DESC
+       LIMIT 1`
+    )
+    .get() ?? null;
+}
+
+function selectFocusSession(sessionId) {
+  return sqlite
+    .prepare(
+      `SELECT fs.*, t.title AS task_title, t.status AS task_status, g.title AS goal_title, p.title AS project_title
+       FROM focus_sessions fs
+       LEFT JOIN tasks t ON t.id = fs.task_id
+       LEFT JOIN goals g ON g.id = t.goal_id
+       LEFT JOIN projects p ON p.id = t.project_id
+       WHERE fs.id = ?`
+    )
+    .get(sessionId) ?? null;
 }
 
 function getTodayDate() {

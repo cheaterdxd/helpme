@@ -45,6 +45,8 @@ Core endpoints:
 - `GET /api/tasks`
 - `POST /api/tasks/:id/complete`
 - `POST /api/tasks/:id/reopen`
+- `POST /api/tasks/:id/focus/start`
+- `POST /api/focus-sessions/:id/complete`
 - `POST /api/inbox/organize`
 - `GET /api/calendar`
 - `GET /api/deadlines`

@@ -1,5 +1,15 @@
 import { useEffect, useState } from "react";
-import { askHelpMe, completeTask, confirmProposal, fetchAppData, fetchNowBriefing, logHabitToday, reopenTask } from "./api";
+import {
+  askHelpMe,
+  completeFocusSession,
+  completeTask,
+  confirmProposal,
+  fetchAppData,
+  fetchNowBriefing,
+  logHabitToday,
+  reopenTask,
+  startFocusSession
+} from "./api";
 import { AskOrb } from "./components/AskOrb";
 import { AskOverlay } from "./components/AskOverlay";
 import { ContextDrawer } from "./components/ContextDrawer";
@@ -114,6 +124,16 @@ export function App() {
     await loadAllData();
   }
 
+  async function handleStartFocus(taskId: string) {
+    await startFocusSession(taskId);
+    await loadAllData();
+  }
+
+  async function handleCompleteFocus(sessionId: string, completeTask = false) {
+    await completeFocusSession(sessionId, completeTask);
+    await loadAllData();
+  }
+
   return (
     <div className="app-shell">
       <TopBar
@@ -141,6 +161,8 @@ export function App() {
             onCompleteTask={handleCompleteTask}
             onReopenTask={handleReopenTask}
             onLogHabit={handleLogHabit}
+            onStartFocus={handleStartFocus}
+            onCompleteFocus={handleCompleteFocus}
           />
         )}
       </main>

@@ -66,6 +66,17 @@ async function runSmokeChecks() {
   assert(Array.isArray(tasks.open), "Tasks should include open collection");
 
   const focusTaskId = today.suggested_focus.task_id;
+  const startedFocus = await postJson(`/api/tasks/${focusTaskId}/focus/start`, {});
+  assert(startedFocus.ok === true, "Start focus should return ok");
+  assert(startedFocus.session?.status === "active", "Start focus should create active session");
+
+  const todayWithFocus = await getJson("/api/today");
+  assert(todayWithFocus.focus_session?.id === startedFocus.session.id, "Today should expose active focus session");
+
+  const endedFocus = await postJson(`/api/focus-sessions/${startedFocus.session.id}/complete`, { complete_task: false });
+  assert(endedFocus.ok === true, "Complete focus should return ok");
+  assert(endedFocus.session?.status === "completed", "Complete focus should mark session completed");
+
   const complete = await postJson(`/api/tasks/${focusTaskId}/complete`, {});
   assert(complete.ok === true, "Complete task should return ok");
   const afterComplete = await getJson("/api/tasks");

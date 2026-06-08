@@ -6,10 +6,12 @@ import {
   CircleAlert,
   Inbox,
   ListChecks,
+  Play,
   Radar,
   RotateCcw,
   Sparkles,
-  Target
+  Target,
+  Timer
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { routeMeta, type Route } from "../navigation";
@@ -25,9 +27,21 @@ type RoutePanelProps = {
   onCompleteTask: (taskId: string) => Promise<void>;
   onReopenTask: (taskId: string) => Promise<void>;
   onLogHabit: (habitId: string) => Promise<void>;
+  onStartFocus: (taskId: string) => Promise<void>;
+  onCompleteFocus: (sessionId: string, completeTask?: boolean) => Promise<void>;
 };
 
-export function RoutePanel({ route, data, error, onCommand, onCompleteTask, onReopenTask, onLogHabit }: RoutePanelProps) {
+export function RoutePanel({
+  route,
+  data,
+  error,
+  onCommand,
+  onCompleteTask,
+  onReopenTask,
+  onLogHabit,
+  onStartFocus,
+  onCompleteFocus
+}: RoutePanelProps) {
   if (error) {
     return (
       <section className="route-panel" aria-label={routeMeta[route].label} data-active="true">
@@ -48,7 +62,17 @@ export function RoutePanel({ route, data, error, onCommand, onCompleteTask, onRe
     );
   }
 
-  if (route === "today") return <TodayView data={data} onCommand={onCommand} onCompleteTask={onCompleteTask} />;
+  if (route === "today") {
+    return (
+      <TodayView
+        data={data}
+        onCommand={onCommand}
+        onCompleteTask={onCompleteTask}
+        onStartFocus={onStartFocus}
+        onCompleteFocus={onCompleteFocus}
+      />
+    );
+  }
   if (route === "inbox") return <InboxView data={data} onCommand={onCommand} />;
   if (route === "calendar") return <CalendarView data={data} onCommand={onCommand} />;
   if (route === "deadlines") return <DeadlinesView radar={data.deadlines} />;
@@ -61,11 +85,15 @@ export function RoutePanel({ route, data, error, onCommand, onCompleteTask, onRe
 function TodayView({
   data,
   onCommand,
-  onCompleteTask
+  onCompleteTask,
+  onStartFocus,
+  onCompleteFocus
 }: {
   data: AppData;
   onCommand: (message: string) => Promise<void>;
   onCompleteTask: (taskId: string) => Promise<void>;
+  onStartFocus: (taskId: string) => Promise<void>;
+  onCompleteFocus: (sessionId: string, completeTask?: boolean) => Promise<void>;
 }) {
   return (
     <section className="os-view" aria-label="Today">
@@ -85,6 +113,33 @@ function TodayView({
         <Metric label="Free" value={`${Math.round(data.today.summary.available_minutes / 60)}h`} />
       </div>
 
+      {data.today.focus_session && (
+        <section className="focus-band" data-mode="active">
+          <div className="focus-band-icon">
+            <Timer aria-hidden="true" size={20} />
+          </div>
+          <div>
+            <p className="block-label">In focus</p>
+            <h2>{data.today.focus_session.title}</h2>
+            <p>
+              {formatTime(data.today.focus_session.start_at ?? "")} start
+              {data.today.focus_session.project_title ? ` - ${data.today.focus_session.project_title}` : ""}
+            </p>
+          </div>
+          <div className="focus-actions">
+            <span>{data.today.focus_session.duration_minutes}m</span>
+            <button type="button" onClick={() => void onCompleteFocus(data.today.focus_session!.id)}>
+              <CheckCircle2 aria-hidden="true" size={15} />
+              <span>End</span>
+            </button>
+            <button type="button" onClick={() => void onCompleteFocus(data.today.focus_session!.id, true)}>
+              <CheckCircle2 aria-hidden="true" size={15} />
+              <span>Done</span>
+            </button>
+          </div>
+        </section>
+      )}
+
       {data.today.suggested_focus && (
         <section className="focus-band">
           <div className="focus-band-icon">
@@ -97,6 +152,10 @@ function TodayView({
           </div>
           <div className="focus-actions">
             <span>{data.today.suggested_focus.duration_minutes}m</span>
+            <button type="button" onClick={() => void onStartFocus(data.today.suggested_focus!.task_id)}>
+              <Play aria-hidden="true" size={15} />
+              <span>Start</span>
+            </button>
             <button type="button" onClick={() => void onCompleteTask(data.today.suggested_focus!.task_id)}>
               <CheckCircle2 aria-hidden="true" size={15} />
               <span>Done</span>

@@ -113,6 +113,20 @@ export type ApiTask = {
   project_title?: string | null;
 };
 
+export type FocusSession = {
+  id: string;
+  task_id: string | null;
+  title: string;
+  start_at: string | null;
+  end_at: string | null;
+  duration_minutes: number;
+  status: "planned" | "active" | "completed" | "cancelled";
+  task_title?: string | null;
+  task_status?: string | null;
+  goal_title?: string | null;
+  project_title?: string | null;
+};
+
 export type TodayData = {
   date: string;
   greeting: string;
@@ -137,6 +151,7 @@ export type TodayData = {
     goal_title?: string | null;
     project_title?: string | null;
   };
+  focus_session: FocusSession | null;
   planner: {
     mode: string;
     selected_task_id: string | null;

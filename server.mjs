@@ -9,6 +9,7 @@ import { createServer as createViteServer } from "vite";
 import { aiCommandRequestSchema, handleAiCommand } from "./server/ai/command.mjs";
 import { getOllamaStatus } from "./server/ai/ollama-client.mjs";
 import {
+  completeFocusSession,
   completeTask,
   confirmActionProposal,
   getCalendarView,
@@ -20,7 +21,8 @@ import {
   getTodayView,
   logHabitToday,
   organizeInboxIntoProposal,
-  reopenTask
+  reopenTask,
+  startFocusSession
 } from "./server/db/app-queries.mjs";
 import { buildNowBriefing } from "./server/db/now-query.mjs";
 import { seedDatabase } from "./server/db/seed.mjs";
@@ -72,6 +74,29 @@ app.post("/api/tasks/:id/reopen", async (request, reply) => {
 
   if (!result.ok) {
     return reply.code(404).send(result);
+  }
+
+  return result;
+});
+
+app.post("/api/tasks/:id/focus/start", async (request, reply) => {
+  const taskId = typeof request.params?.id === "string" ? request.params.id : "";
+  const result = startFocusSession(taskId);
+
+  if (!result.ok) {
+    return reply.code(result.status_code ?? 400).send(result);
+  }
+
+  return result;
+});
+
+app.post("/api/focus-sessions/:id/complete", async (request, reply) => {
+  const sessionId = typeof request.params?.id === "string" ? request.params.id : "";
+  const body = typeof request.body === "object" && request.body !== null ? request.body : {};
+  const result = completeFocusSession(sessionId, { completeTask: body.complete_task === true });
+
+  if (!result.ok) {
+    return reply.code(result.status_code ?? 400).send(result);
   }
 
   return result;
