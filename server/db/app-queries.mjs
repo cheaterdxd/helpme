@@ -190,6 +190,7 @@ export function getReviewSummary() {
   const completedToday = plannedToday.filter((task) => task.status === "done");
   const unfinishedToday = plannedToday.filter((task) => ACTIVE_TASK_STATUSES.includes(task.status));
   const habitInsights = getHabitDashboard().slice(0, 3);
+  const reschedule = buildReviewReschedulePlan(unfinishedToday, today);
 
   return {
     date: today,
@@ -200,12 +201,8 @@ export function getReviewSummary() {
       value: "unknown",
       label: "Ask at review time"
     },
-    reschedule_suggestion: unfinishedToday.map((task, index) => ({
-      task_id: task.id,
-      title: task.title,
-      suggested_start: `${addDays(today, 1)}T${20 + index}:00:00+07:00`,
-      reason: "Still open after today's plan."
-    })),
+    reschedule_suggestion: reschedule.items,
+    reschedule_validation: reschedule.validation,
     habit_insights: habitInsights,
     summary: `Today has ${completedToday.length} completed task and ${unfinishedToday.length} unfinished planned task.`
   };
@@ -342,7 +339,8 @@ export function createDailyReviewProposal() {
     title: "Apply evening review",
     summary: `Reschedule ${review.unfinished.length} unfinished task${review.unfinished.length === 1 ? "" : "s"} for tomorrow.`,
     payload: {
-      reschedule: review.reschedule_suggestion
+      reschedule: review.reschedule_suggestion,
+      validation: review.reschedule_validation
     }
   });
 }
@@ -634,13 +632,19 @@ function applyProposal(intent, payload) {
   }
 
   if (intent === "daily_review") {
-    for (const item of payload.reschedule ?? []) {
-      sqlite
-        .prepare("UPDATE tasks SET scheduled_start = ?, scheduled_end = ?, updated_at = ? WHERE id = ?")
-        .run(item.suggested_start, addMinutesIso(item.suggested_start, 45), new Date().toISOString(), item.task_id);
+    const normalizedItems = (payload.reschedule ?? []).map(normalizeReviewRescheduleItem).filter(Boolean);
+    const conflicts = findRescheduleConflicts(normalizedItems);
+    if (conflicts.length) {
+      throw new Error(`Review reschedule has ${conflicts.length} calendar conflict${conflicts.length === 1 ? "" : "s"}.`);
     }
 
-    return { rescheduled_tasks: payload.reschedule?.length ?? 0 };
+    for (const item of normalizedItems) {
+      sqlite
+        .prepare("UPDATE tasks SET scheduled_start = ?, scheduled_end = ?, updated_at = ? WHERE id = ?")
+        .run(item.suggested_start, item.suggested_end, new Date().toISOString(), item.task_id);
+    }
+
+    return { rescheduled_tasks: normalizedItems.length, validation: payload.validation ?? null };
   }
 
   return { ignored: true };
@@ -836,6 +840,120 @@ function findPlanConflicts(date, blocks, replacePlanId) {
   }
 
   return conflicts;
+}
+
+function buildReviewReschedulePlan(tasks, today) {
+  const unscheduled = [...tasks].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+  const items = [];
+  const dayPlans = [];
+
+  for (let dayOffset = 1; dayOffset <= 7 && unscheduled.length; dayOffset += 1) {
+    const date = addDays(today, dayOffset);
+    const freeWindows = buildFreeWindows({
+      date,
+      availableStart: "20:00",
+      availableEnd: "23:00",
+      includeTimeBlocks: true
+    });
+    const windowCursors = freeWindows.map((window) => ({
+      ...window,
+      cursor_minutes: timeToMinutes(window.start.slice(11, 16)),
+      end_minutes: timeToMinutes(window.end.slice(11, 16))
+    }));
+    const scheduledForDate = [];
+
+    for (let index = 0; index < unscheduled.length; index += 1) {
+      const task = unscheduled[index];
+      const duration = Math.min(Math.max(task.estimated_minutes ?? 45, 15), 90);
+      const window = windowCursors.find((item) => item.cursor_minutes + duration <= item.end_minutes);
+      if (!window) continue;
+
+      const suggestedStart = `${date}T${minutesToTime(window.cursor_minutes)}:00+07:00`;
+      const suggestedEnd = `${date}T${minutesToTime(window.cursor_minutes + duration)}:00+07:00`;
+      const rescheduleItem = {
+        task_id: task.id,
+        title: task.title,
+        suggested_start: suggestedStart,
+        suggested_end: suggestedEnd,
+        duration_minutes: duration,
+        reason: `Still open after today's plan; moved into an open ${window.label.toLowerCase()}.`,
+        free_window_id: window.id
+      };
+
+      items.push(rescheduleItem);
+      scheduledForDate.push(rescheduleItem);
+      window.cursor_minutes += duration;
+
+      if (window.cursor_minutes + 10 <= window.end_minutes) {
+        window.cursor_minutes += 10;
+      }
+
+      unscheduled.splice(index, 1);
+      index -= 1;
+    }
+
+    dayPlans.push({
+      date,
+      free_windows: freeWindows,
+      blocked_intervals: selectBusyIntervalsForDate(date, { includeTimeBlocks: true }),
+      scheduled: scheduledForDate
+    });
+  }
+
+  const conflicts = findRescheduleConflicts(items);
+
+  return {
+    items,
+    validation: {
+      policy: "reschedule_unfinished_tasks_into_open_evening_windows",
+      requested_window: {
+        start_time: "20:00",
+        end_time: "23:00"
+      },
+      day_plans: dayPlans,
+      conflict_count: conflicts.length,
+      scheduled_tasks: items.length,
+      scheduled_minutes: sumMinutes(items.map((item) => ({ start_at: item.suggested_start, end_at: item.suggested_end }))),
+      unscheduled_task_ids: unscheduled.map((task) => task.id)
+    }
+  };
+}
+
+function findRescheduleConflicts(items) {
+  const conflicts = [];
+  const byDate = new Map();
+
+  for (const item of items) {
+    const date = item.suggested_start.slice(0, 10);
+    const blocks = byDate.get(date) ?? [];
+    blocks.push({
+      id: item.task_id,
+      title: item.title,
+      start_at: item.suggested_start,
+      end_at: item.suggested_end
+    });
+    byDate.set(date, blocks);
+  }
+
+  for (const [date, blocks] of byDate.entries()) {
+    conflicts.push(...findPlanConflicts(date, blocks, null));
+  }
+
+  return conflicts;
+}
+
+function normalizeReviewRescheduleItem(item) {
+  if (!item || typeof item !== "object" || typeof item.task_id !== "string" || typeof item.suggested_start !== "string") return null;
+  const durationMinutes = Number.isFinite(item.duration_minutes) ? item.duration_minutes : 45;
+  const suggestedEnd = typeof item.suggested_end === "string" ? item.suggested_end : addMinutesIso(item.suggested_start, durationMinutes);
+
+  return {
+    task_id: item.task_id,
+    title: typeof item.title === "string" ? item.title : item.task_id,
+    suggested_start: item.suggested_start,
+    suggested_end: suggestedEnd,
+    duration_minutes: durationMinutes
+  };
 }
 
 function intervalsOverlap(startA, endA, startB, endB) {

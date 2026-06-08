@@ -142,6 +142,23 @@ async function runSmokeChecks() {
   assert(planConfirmed.ok === true, "Confirm plan proposal should return ok");
   assert(planConfirmed.result?.time_blocks === plan.related_context.blocks.length, "Confirm plan should write every proposed block");
 
+  const review = await postJson("/api/ai/command", {
+    message: "Evening review"
+  });
+  assert(review.intent === "daily_review", "Review command should return daily_review intent");
+  assert(review.mode === "proposal", "Review command should return proposal mode");
+  assert(Array.isArray(review.proposal?.payload?.reschedule), "Review proposal should include reschedule items");
+  assert(review.proposal.payload.reschedule.length > 0, "Review proposal should reschedule unfinished tasks");
+  assert(review.proposal.payload.validation?.conflict_count === 0, "Review proposal should be conflict-free");
+  assertNoReviewConflicts(review.proposal.payload.reschedule, review.proposal.payload.validation.day_plans);
+
+  const reviewConfirmed = await postJson(`/api/ai/proposals/${review.proposal.id}/confirm`, {});
+  assert(reviewConfirmed.ok === true, "Confirm review proposal should return ok");
+  assert(
+    reviewConfirmed.result?.rescheduled_tasks === review.proposal.payload.reschedule.length,
+    "Confirm review should reschedule every proposed task"
+  );
+
   const create = await postJson("/api/ai/command", {
     message: "Nhac toi ngay mai 8h hoc AWS 1h"
   });
@@ -223,6 +240,27 @@ function assertNoPlanConflicts(blocks, blockedIntervals) {
       assert(
         !intervalsOverlap(blocks[index].start_at, blocks[index].end_at, blocks[nextIndex].start_at, blocks[nextIndex].end_at),
         "Plan blocks should not overlap each other"
+      );
+    }
+  }
+}
+
+function assertNoReviewConflicts(items, dayPlans) {
+  const blockedByDate = new Map(dayPlans.map((plan) => [plan.date, plan.blocked_intervals]));
+
+  for (const item of items) {
+    const blockedIntervals = blockedByDate.get(item.suggested_start.slice(0, 10)) ?? [];
+    for (const busy of blockedIntervals) {
+      assert(!intervalsOverlap(item.suggested_start, item.suggested_end, busy.start, busy.end), `Review item ${item.title} should not overlap ${busy.title}`);
+    }
+  }
+
+  for (let index = 0; index < items.length; index += 1) {
+    for (let nextIndex = index + 1; nextIndex < items.length; nextIndex += 1) {
+      if (items[index].suggested_start.slice(0, 10) !== items[nextIndex].suggested_start.slice(0, 10)) continue;
+      assert(
+        !intervalsOverlap(items[index].suggested_start, items[index].suggested_end, items[nextIndex].suggested_start, items[nextIndex].suggested_end),
+        "Review reschedule items should not overlap each other"
       );
     }
   }

@@ -299,8 +299,47 @@ export type ReviewData = {
     task_id: string;
     title: string;
     suggested_start: string;
+    suggested_end: string;
+    duration_minutes: number;
     reason: string;
+    free_window_id?: string;
   }>;
+  reschedule_validation: {
+    policy: string;
+    requested_window: {
+      start_time: string;
+      end_time: string;
+    };
+    day_plans: Array<{
+      date: string;
+      free_windows: Array<{
+        id: string;
+        start: string;
+        end: string;
+        label: string;
+        minutes: number;
+      }>;
+      blocked_intervals: Array<{
+        id: string;
+        title: string;
+        type: string;
+        start: string;
+        end: string;
+        source: string;
+      }>;
+      scheduled: Array<{
+        task_id: string;
+        title: string;
+        suggested_start: string;
+        suggested_end: string;
+        duration_minutes: number;
+      }>;
+    }>;
+    conflict_count: number;
+    scheduled_tasks: number;
+    scheduled_minutes: number;
+    unscheduled_task_ids: string[];
+  };
   habit_insights: HabitData;
   summary: string;
 };

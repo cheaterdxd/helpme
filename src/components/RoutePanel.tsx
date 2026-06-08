@@ -423,9 +423,12 @@ function ReviewView({
             {data.review.reschedule_suggestion.map((item) => (
               <div key={item.task_id}>
                 <strong>{item.title}</strong>
-                <span>{formatTime(item.suggested_start)} tomorrow</span>
+                <span>
+                  {formatDateLabel(item.suggested_start)} {formatTime(item.suggested_start)} - {formatTime(item.suggested_end)} / {item.duration_minutes}m
+                </span>
               </div>
             ))}
+            {!data.review.reschedule_suggestion.length && <p className="empty-state">No reschedule needed.</p>}
           </div>
         </section>
         <section>
@@ -593,6 +596,10 @@ function TaskList({
 
 function formatTime(value: string) {
   return value.slice(11, 16);
+}
+
+function formatDateLabel(value: string) {
+  return value.slice(0, 10);
 }
 
 function formatDuration(start: string, end: string) {
