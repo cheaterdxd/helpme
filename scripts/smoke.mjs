@@ -132,7 +132,15 @@ async function runSmokeChecks() {
   assert(plan.mode === "proposal", "Plan command should return proposal mode");
   assert(plan.proposal?.id, "Plan command should create proposal");
   assert(Array.isArray(plan.related_context?.blocks), "Plan command should include blocks");
+  assert(Array.isArray(plan.related_context?.validation?.free_windows), "Plan command should include free-window validation");
+  assert(Array.isArray(plan.related_context?.validation?.blocked_intervals), "Plan command should include blocked intervals");
+  assert(plan.related_context.validation.conflict_count === 0, "Plan command should produce conflict-free blocks");
+  assertNoPlanConflicts(plan.related_context.blocks, plan.related_context.validation.blocked_intervals);
   assert(plan.related_context?.ai?.provider, "Plan command should include AI provider metadata");
+
+  const planConfirmed = await postJson(`/api/ai/proposals/${plan.proposal.id}/confirm`, {});
+  assert(planConfirmed.ok === true, "Confirm plan proposal should return ok");
+  assert(planConfirmed.result?.time_blocks === plan.related_context.blocks.length, "Confirm plan should write every proposed block");
 
   const create = await postJson("/api/ai/command", {
     message: "Nhac toi ngay mai 8h hoc AWS 1h"
@@ -201,6 +209,27 @@ function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+function assertNoPlanConflicts(blocks, blockedIntervals) {
+  for (const block of blocks) {
+    for (const busy of blockedIntervals) {
+      assert(!intervalsOverlap(block.start_at, block.end_at, busy.start, busy.end), `Plan block ${block.title} should not overlap ${busy.title}`);
+    }
+  }
+
+  for (let index = 0; index < blocks.length; index += 1) {
+    for (let nextIndex = index + 1; nextIndex < blocks.length; nextIndex += 1) {
+      assert(
+        !intervalsOverlap(blocks[index].start_at, blocks[index].end_at, blocks[nextIndex].start_at, blocks[nextIndex].end_at),
+        "Plan blocks should not overlap each other"
+      );
+    }
+  }
+}
+
+function intervalsOverlap(startA, endA, startB, endB) {
+  return Date.parse(startA) < Date.parse(endB) && Date.parse(startB) < Date.parse(endA);
 }
 
 function sleep(ms) {

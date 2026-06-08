@@ -103,14 +103,12 @@ export function getCalendarView() {
     date: today,
     events: selectCalendarEventsForDate(today),
     time_blocks: selectTimeBlocksForDate(today),
-    free_windows: [
-      {
-        id: "free_evening",
-        start: `${today}T20:00:00+07:00`,
-        end: `${today}T23:00:00+07:00`,
-        label: "Evening focus window"
-      }
-    ]
+    free_windows: buildFreeWindows({
+      date: today,
+      availableStart: "20:00",
+      availableEnd: "23:00",
+      includeTimeBlocks: true
+    })
   };
 }
 
@@ -233,50 +231,73 @@ export function organizeInboxIntoProposal() {
 
 export function createPlanDayProposal({ availableStart = "20:00", availableEnd = "23:00" } = {}) {
   const date = getTodayDate();
-  const availableMinutes = timeToMinutes(availableEnd) - timeToMinutes(availableStart);
+  const planId = getDailyPlanId(date);
+  const freeWindows = buildFreeWindows({
+    date,
+    availableStart,
+    availableEnd,
+    replacePlanId: planId,
+    includeTimeBlocks: true
+  });
+  const availableMinutes = sumMinutes(freeWindows);
   const tasks = rankOpenTasks(selectTasks(), selectDeadlines(), { today: date, availableMinutes }).filter((task) => task.status !== "inbox");
   const blocks = [];
-  let cursorMinutes = timeToMinutes(availableStart);
-  const endMinutes = timeToMinutes(availableEnd);
+  const windowCursors = freeWindows.map((window) => ({
+    ...window,
+    cursor_minutes: timeToMinutes(window.start.slice(11, 16)),
+    end_minutes: timeToMinutes(window.end.slice(11, 16))
+  }));
 
   for (const task of tasks) {
     const duration = Math.min(task.estimated_minutes ?? 30, 90);
-    if (cursorMinutes + duration > endMinutes) break;
+    const window = windowCursors.find((item) => item.cursor_minutes + duration <= item.end_minutes);
+    if (!window) continue;
 
     blocks.push({
       task_id: task.id,
       title: task.title,
-      start_at: `${date}T${minutesToTime(cursorMinutes)}:00+07:00`,
-      end_at: `${date}T${minutesToTime(cursorMinutes + duration)}:00+07:00`,
+      start_at: `${date}T${minutesToTime(window.cursor_minutes)}:00+07:00`,
+      end_at: `${date}T${minutesToTime(window.cursor_minutes + duration)}:00+07:00`,
       type: "task"
     });
-    cursorMinutes += duration;
+    window.cursor_minutes += duration;
 
-    if (cursorMinutes + 10 <= endMinutes) {
+    if (window.cursor_minutes + 10 <= window.end_minutes) {
       blocks.push({
         task_id: null,
         title: "Break",
-        start_at: `${date}T${minutesToTime(cursorMinutes)}:00+07:00`,
-        end_at: `${date}T${minutesToTime(cursorMinutes + 10)}:00+07:00`,
+        start_at: `${date}T${minutesToTime(window.cursor_minutes)}:00+07:00`,
+        end_at: `${date}T${minutesToTime(window.cursor_minutes + 10)}:00+07:00`,
         type: "break"
       });
-      cursorMinutes += 10;
+      window.cursor_minutes += 10;
     }
   }
+
+  const validation = buildPlanValidation({
+    date,
+    availableStart,
+    availableEnd,
+    replacePlanId: planId,
+    blocks,
+    freeWindows,
+    taskCount: tasks.length
+  });
 
   const proposal = createActionProposal({
     intent: "plan_day",
     title: "Plan today",
-    summary: `Create ${blocks.length} time block${blocks.length === 1 ? "" : "s"} between ${availableStart} and ${availableEnd}.`,
+    summary: `Create ${blocks.length} conflict-free time block${blocks.length === 1 ? "" : "s"} between ${availableStart} and ${availableEnd}.`,
     payload: {
       plan_date: date,
       available_start: availableStart,
       available_end: availableEnd,
+      validation,
       blocks
     }
   });
 
-  return { blocks, proposal };
+  return { blocks, proposal, validation };
 }
 
 export function createTaskProposal({ title, dueAt = null, scheduledStart = null, estimatedMinutes = 30, priority = 50 }) {
@@ -337,13 +358,19 @@ export function confirmActionProposal(proposalId) {
   }
 
   const payload = JSON.parse(proposal.payload_json);
-  const result = sqlite.transaction(() => {
-    const applyResult = applyProposal(proposal.intent, payload);
-    sqlite
-      .prepare("UPDATE ai_action_proposals SET status = 'confirmed', confirmed_at = ? WHERE id = ?")
-      .run(new Date().toISOString(), proposal.id);
-    return applyResult;
-  })();
+  let result;
+
+  try {
+    result = sqlite.transaction(() => {
+      const applyResult = applyProposal(proposal.intent, payload);
+      sqlite
+        .prepare("UPDATE ai_action_proposals SET status = 'confirmed', confirmed_at = ? WHERE id = ?")
+        .run(new Date().toISOString(), proposal.id);
+      return applyResult;
+    })();
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Proposal validation failed." };
+  }
 
   return {
     ok: true,
@@ -541,7 +568,12 @@ function applyProposal(intent, payload) {
 
   if (intent === "plan_day") {
     const now = new Date().toISOString();
-    const planId = `daily_plan_${payload.plan_date.replaceAll("-", "_")}`;
+    const planId = getDailyPlanId(payload.plan_date);
+    const conflicts = findPlanConflicts(payload.plan_date, payload.blocks ?? [], planId);
+    if (conflicts.length) {
+      throw new Error(`Plan has ${conflicts.length} calendar conflict${conflicts.length === 1 ? "" : "s"}.`);
+    }
+
     sqlite
       .prepare(
         `INSERT INTO daily_plans (id, plan_date, status, summary, created_at, updated_at)
@@ -662,6 +694,12 @@ function selectCalendarEventsForDate(date) {
     .all(date);
 }
 
+function selectBlockingTimeBlocksForDate(date, replacePlanId = null) {
+  const blocks = selectTimeBlocksForDate(date);
+  if (!replacePlanId) return blocks;
+  return blocks.filter((block) => block.daily_plan_id !== replacePlanId);
+}
+
 function selectActiveFocusSession() {
   return sqlite
     .prepare(
@@ -690,8 +728,126 @@ function selectFocusSession(sessionId) {
     .get(sessionId) ?? null;
 }
 
+function buildFreeWindows({ date, availableStart, availableEnd, replacePlanId = null, includeTimeBlocks = true }) {
+  const baseWindow = {
+    id: "free_requested_window",
+    start: `${date}T${availableStart}:00+07:00`,
+    end: `${date}T${availableEnd}:00+07:00`,
+    label: "Requested focus window"
+  };
+  const busyIntervals = selectBusyIntervalsForDate(date, { replacePlanId, includeTimeBlocks });
+  const freeWindows = subtractBusyIntervals([baseWindow], busyIntervals);
+
+  return freeWindows.map((window, index) => ({
+    ...window,
+    id: `free_${date.replaceAll("-", "_")}_${index + 1}`,
+    label: index === 0 ? "Open focus window" : "Open gap",
+    minutes: minutesBetween(window.start, window.end)
+  }));
+}
+
+function selectBusyIntervalsForDate(date, { replacePlanId = null, includeTimeBlocks = true } = {}) {
+  const events = selectCalendarEventsForDate(date).map((event) => ({
+    id: event.id,
+    title: event.title,
+    type: "event",
+    start: event.start_at,
+    end: event.end_at,
+    source: event.source
+  }));
+  const blocks = includeTimeBlocks
+    ? selectBlockingTimeBlocksForDate(date, replacePlanId).map((block) => ({
+        id: block.id,
+        title: block.title,
+        type: block.type,
+        start: block.start_at,
+        end: block.end_at,
+        source: "time_block"
+      }))
+    : [];
+
+  return [...events, ...blocks]
+    .filter((item) => item.start && item.end && Date.parse(item.end) > Date.parse(item.start))
+    .sort((a, b) => a.start.localeCompare(b.start));
+}
+
+function subtractBusyIntervals(windows, busyIntervals) {
+  let free = windows;
+
+  for (const busy of busyIntervals) {
+    free = free.flatMap((window) => subtractInterval(window, busy));
+  }
+
+  return free.filter((window) => minutesBetween(window.start, window.end) > 0);
+}
+
+function subtractInterval(window, busy) {
+  if (!intervalsOverlap(window.start, window.end, busy.start, busy.end)) return [window];
+
+  const next = [];
+  if (Date.parse(busy.start) > Date.parse(window.start)) {
+    next.push({ ...window, end: busy.start });
+  }
+
+  if (Date.parse(busy.end) < Date.parse(window.end)) {
+    next.push({ ...window, start: busy.end });
+  }
+
+  return next;
+}
+
+function buildPlanValidation({ date, availableStart, availableEnd, replacePlanId, blocks, freeWindows, taskCount }) {
+  const busyIntervals = selectBusyIntervalsForDate(date, { replacePlanId, includeTimeBlocks: true });
+  const conflicts = findPlanConflicts(date, blocks, replacePlanId);
+
+  return {
+    policy: "avoid_calendar_events_and_locked_time_blocks",
+    requested_window: {
+      start: `${date}T${availableStart}:00+07:00`,
+      end: `${date}T${availableEnd}:00+07:00`
+    },
+    free_windows: freeWindows,
+    blocked_intervals: busyIntervals,
+    conflict_count: conflicts.length,
+    scheduled_blocks: blocks.length,
+    scheduled_minutes: sumMinutes(blocks.map((block) => ({ start_at: block.start_at, end_at: block.end_at }))),
+    considered_tasks: taskCount
+  };
+}
+
+function findPlanConflicts(date, blocks, replacePlanId) {
+  const busyIntervals = selectBusyIntervalsForDate(date, { replacePlanId, includeTimeBlocks: true });
+  const conflicts = [];
+
+  for (const block of blocks) {
+    for (const busy of busyIntervals) {
+      if (intervalsOverlap(block.start_at, block.end_at, busy.start, busy.end)) {
+        conflicts.push({ block, busy });
+      }
+    }
+  }
+
+  for (let index = 0; index < blocks.length; index += 1) {
+    for (let nextIndex = index + 1; nextIndex < blocks.length; nextIndex += 1) {
+      if (intervalsOverlap(blocks[index].start_at, blocks[index].end_at, blocks[nextIndex].start_at, blocks[nextIndex].end_at)) {
+        conflicts.push({ block: blocks[index], busy: blocks[nextIndex] });
+      }
+    }
+  }
+
+  return conflicts;
+}
+
+function intervalsOverlap(startA, endA, startB, endB) {
+  return Date.parse(startA) < Date.parse(endB) && Date.parse(startB) < Date.parse(endA);
+}
+
 function getTodayDate() {
   return getLocalDate();
+}
+
+function getDailyPlanId(date) {
+  return `daily_plan_${date.replaceAll("-", "_")}`;
 }
 
 function addDays(date, days) {
@@ -701,7 +857,7 @@ function addDays(date, days) {
 }
 
 function sumMinutes(blocks) {
-  return blocks.reduce((sum, block) => sum + minutesBetween(block.start_at, block.end_at), 0);
+  return blocks.reduce((sum, block) => sum + minutesBetween(block.start_at ?? block.start, block.end_at ?? block.end), 0);
 }
 
 function minutesBetween(start, end) {

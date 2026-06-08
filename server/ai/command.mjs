@@ -47,7 +47,7 @@ export async function handleAiCommand(rawMessage) {
 
   if (looksLikePlanDayCommand(normalized)) {
     const window = parseTimeWindow(message);
-    const { blocks, proposal } = createPlanDayProposal(window);
+    const { blocks, proposal, validation } = createPlanDayProposal(window);
     const enriched = await enrichPlanSummary(message, blocks);
 
     return {
@@ -57,6 +57,7 @@ export async function handleAiCommand(rawMessage) {
       proposal,
       related_context: {
         blocks,
+        validation,
         reason: enriched.reason ?? "Rule-based planner selected tasks by deadline, priority, and effort.",
         ai: enriched.ai
       }
