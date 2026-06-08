@@ -113,6 +113,55 @@ export type InboxOrganizationAction = {
   reason: string;
 };
 
+export type PlanProposalBlock = {
+  task_id: string | null;
+  title: string;
+  start_at: string;
+  end_at: string;
+  type: string;
+};
+
+export type PlanProposalValidation = {
+  policy: string;
+  free_windows: Array<{
+    id: string;
+    start: string;
+    end: string;
+    label: string;
+    minutes: number;
+  }>;
+  blocked_intervals: Array<{
+    id: string;
+    title: string;
+    type: string;
+    start: string;
+    end: string;
+    source: string;
+  }>;
+  conflict_count: number;
+  scheduled_blocks: number;
+  scheduled_minutes: number;
+  considered_tasks: number;
+};
+
+export type ReviewRescheduleItem = {
+  task_id: string;
+  title: string;
+  suggested_start: string;
+  suggested_end: string;
+  duration_minutes: number;
+  reason: string;
+  free_window_id?: string;
+};
+
+export type ReviewRescheduleValidation = {
+  policy: string;
+  conflict_count: number;
+  scheduled_tasks: number;
+  scheduled_minutes: number;
+  unscheduled_task_ids: string[];
+};
+
 export type ApiTask = {
   id: string;
   goal_id: string;
@@ -366,6 +415,9 @@ export type AiActionProposal = {
   summary: string;
   payload: Record<string, unknown> & {
     actions?: InboxOrganizationAction[];
+    blocks?: PlanProposalBlock[];
+    validation?: PlanProposalValidation | ReviewRescheduleValidation;
+    reschedule?: ReviewRescheduleItem[];
   };
   status: "pending" | "confirmed" | "cancelled";
   created_at: string;

@@ -1,6 +1,15 @@
 import { Check, Send, X } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import type { AiActionProposal, AskResponse, InboxOrganizationAction, NowBriefing } from "../types";
+import type {
+  AiActionProposal,
+  AskResponse,
+  InboxOrganizationAction,
+  NowBriefing,
+  PlanProposalBlock,
+  PlanProposalValidation,
+  ReviewRescheduleItem,
+  ReviewRescheduleValidation
+} from "../types";
 
 type AskOverlayProps = {
   briefing: NowBriefing;
@@ -92,8 +101,22 @@ export function AskOverlay({
 }
 
 function ProposalPreview({ proposal }: { proposal: AiActionProposal }) {
-  if (proposal.intent !== "organize_inbox") return null;
+  if (proposal.intent === "organize_inbox") {
+    return <InboxProposalPreview proposal={proposal} />;
+  }
 
+  if (proposal.intent === "plan_day") {
+    return <PlanProposalPreview proposal={proposal} />;
+  }
+
+  if (proposal.intent === "daily_review") {
+    return <ReviewProposalPreview proposal={proposal} />;
+  }
+
+  return null;
+}
+
+function InboxProposalPreview({ proposal }: { proposal: AiActionProposal }) {
   const actions = getInboxActions(proposal);
   if (!actions.length) return null;
 
@@ -123,6 +146,58 @@ function ProposalPreview({ proposal }: { proposal: AiActionProposal }) {
   );
 }
 
+function PlanProposalPreview({ proposal }: { proposal: AiActionProposal }) {
+  const blocks = getPlanBlocks(proposal);
+  const validation = getPlanValidation(proposal);
+  if (!blocks.length) return null;
+
+  return (
+    <div className="proposal-preview proposal-timeline" aria-label="Plan preview">
+      <div className="proposal-preview-summary">
+        <b>{validation?.scheduled_minutes ?? sumBlockMinutes(blocks)}m</b>
+        <span>{validation?.conflict_count ?? 0} conflicts</span>
+      </div>
+      {blocks.map((block) => (
+        <div className="proposal-time-row" data-type={block.type} key={`${block.start_at}-${block.title}`}>
+          <time>{formatTime(block.start_at)}</time>
+          <div>
+            <strong>{block.title}</strong>
+            <small>
+              {formatTime(block.start_at)} - {formatTime(block.end_at)} / {formatDuration(block.start_at, block.end_at)}
+            </small>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ReviewProposalPreview({ proposal }: { proposal: AiActionProposal }) {
+  const items = getReviewItems(proposal);
+  const validation = getReviewValidation(proposal);
+  if (!items.length) return null;
+
+  return (
+    <div className="proposal-preview proposal-review" aria-label="Review reschedule preview">
+      <div className="proposal-preview-summary">
+        <b>{validation?.scheduled_tasks ?? items.length} tasks</b>
+        <span>{validation?.conflict_count ?? 0} conflicts</span>
+      </div>
+      {items.map((item) => (
+        <div className="proposal-review-row" key={item.task_id}>
+          <strong>{item.title}</strong>
+          <small>
+            {formatDate(item.suggested_start)} / {formatTime(item.suggested_start)} - {formatTime(item.suggested_end)} / {item.duration_minutes}m
+          </small>
+        </div>
+      ))}
+      {!!validation?.unscheduled_task_ids?.length && (
+        <p className="proposal-warning">{validation.unscheduled_task_ids.length} task left unscheduled.</p>
+      )}
+    </div>
+  );
+}
+
 function getInboxActions(proposal: AiActionProposal): InboxOrganizationAction[] {
   const value = proposal.payload.actions;
   if (!Array.isArray(value)) return [];
@@ -130,4 +205,57 @@ function getInboxActions(proposal: AiActionProposal): InboxOrganizationAction[] 
   return value.filter((action) => {
     return action && typeof action.task_id === "string" && typeof action.title === "string";
   });
+}
+
+function getPlanBlocks(proposal: AiActionProposal): PlanProposalBlock[] {
+  const value = proposal.payload.blocks;
+  if (!Array.isArray(value)) return [];
+
+  return value.filter((block) => {
+    return block && typeof block.title === "string" && typeof block.start_at === "string" && typeof block.end_at === "string";
+  });
+}
+
+function getPlanValidation(proposal: AiActionProposal): PlanProposalValidation | null {
+  const value = proposal.payload.validation;
+  if (!value || !("scheduled_blocks" in value)) return null;
+  return value;
+}
+
+function getReviewItems(proposal: AiActionProposal): ReviewRescheduleItem[] {
+  const value = proposal.payload.reschedule;
+  if (!Array.isArray(value)) return [];
+
+  return value.filter((item) => {
+    return item && typeof item.task_id === "string" && typeof item.title === "string" && typeof item.suggested_start === "string";
+  });
+}
+
+function getReviewValidation(proposal: AiActionProposal): ReviewRescheduleValidation | null {
+  const value = proposal.payload.validation;
+  if (!value || !("scheduled_tasks" in value)) return null;
+  return value;
+}
+
+function formatTime(value: string) {
+  return value.slice(11, 16);
+}
+
+function formatDate(value: string) {
+  return value.slice(0, 10);
+}
+
+function formatDuration(start: string, end: string) {
+  const minutes = Math.max(Math.round((Date.parse(end) - Date.parse(start)) / 60000), 0);
+  if (minutes >= 60) {
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    return rest ? `${hours}h ${rest}m` : `${hours}h`;
+  }
+
+  return `${minutes}m`;
+}
+
+function sumBlockMinutes(blocks: PlanProposalBlock[]) {
+  return blocks.reduce((sum, block) => sum + Math.max(Math.round((Date.parse(block.end_at) - Date.parse(block.start_at)) / 60000), 0), 0);
 }

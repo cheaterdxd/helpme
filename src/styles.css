@@ -716,6 +716,30 @@ p {
   gap: 7px;
 }
 
+.proposal-preview-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid rgba(155, 179, 62, 0.34);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.proposal-preview-summary b {
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.proposal-preview-summary span,
+.proposal-warning {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .proposal-preview-group {
   display: grid;
   gap: 5px;
@@ -751,6 +775,64 @@ p {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.35;
+}
+
+.proposal-timeline,
+.proposal-review {
+  max-height: min(300px, 34vh);
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.proposal-time-row,
+.proposal-review-row {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid rgba(155, 179, 62, 0.34);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.proposal-time-row {
+  grid-template-columns: 46px minmax(0, 1fr);
+}
+
+.proposal-time-row time {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.proposal-time-row strong,
+.proposal-review-row strong {
+  display: block;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proposal-time-row small,
+.proposal-review-row small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.proposal-time-row[data-type="break"] {
+  border-style: dashed;
+  background: rgba(244, 247, 243, 0.72);
+}
+
+.proposal-warning {
+  padding: 8px;
+  border: 1px dashed rgba(178, 92, 42, 0.48);
+  border-radius: var(--radius);
+  background: #fff6ef;
 }
 
 .proposal-actions {
