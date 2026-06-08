@@ -115,7 +115,11 @@ function ProposalPreview({ proposal }: { proposal: AiActionProposal }) {
   }
 
   if (proposal.intent === "create_task") {
-    return <CreateTaskProposalPreview proposal={proposal} />;
+    return <ScheduledTaskProposalPreview proposal={proposal} mode="create" />;
+  }
+
+  if (proposal.intent === "reschedule_task") {
+    return <ScheduledTaskProposalPreview proposal={proposal} mode="reschedule" />;
   }
 
   return null;
@@ -203,7 +207,7 @@ function ReviewProposalPreview({ proposal }: { proposal: AiActionProposal }) {
   );
 }
 
-function CreateTaskProposalPreview({ proposal }: { proposal: AiActionProposal }) {
+function ScheduledTaskProposalPreview({ proposal, mode }: { proposal: AiActionProposal; mode: "create" | "reschedule" }) {
   const validation = getCreateTaskValidation(proposal);
   const title = typeof proposal.payload.title === "string" ? proposal.payload.title : proposal.title.replace(/^Create task:\s*/i, "");
   const scheduledStart = typeof proposal.payload.scheduled_start === "string" ? proposal.payload.scheduled_start : null;
@@ -212,7 +216,7 @@ function CreateTaskProposalPreview({ proposal }: { proposal: AiActionProposal })
   const conflictCount = validation?.conflict_count ?? 0;
 
   return (
-    <div className="proposal-preview proposal-create" aria-label="Create task preview">
+    <div className="proposal-preview proposal-create" aria-label={mode === "create" ? "Create task preview" : "Reschedule task preview"}>
       <div className="proposal-preview-summary" data-state={conflictCount ? "conflict" : "clear"}>
         <b>{scheduledStart ? `${formatTime(scheduledStart)} / ${estimatedMinutes}m` : "Inbox"}</b>
         <span>{conflictCount} conflicts</span>
@@ -222,7 +226,7 @@ function CreateTaskProposalPreview({ proposal }: { proposal: AiActionProposal })
         <small>
           {scheduledStart && scheduledEnd
             ? `${formatDate(scheduledStart)} / ${formatTime(scheduledStart)} - ${formatTime(scheduledEnd)}`
-            : `Priority ${proposal.payload.priority ?? 50} / unscheduled`}
+            : `${mode === "create" ? `Priority ${proposal.payload.priority ?? 50}` : "No target time"} / unscheduled`}
         </small>
       </div>
       {!!validation?.conflicts?.length && (

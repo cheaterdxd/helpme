@@ -329,16 +329,27 @@ export function createRescheduleProposal({ taskId, scheduledStart, estimatedMinu
   if (!task) {
     throw new Error("Task not found.");
   }
+  const scheduledEnd = addMinutesIso(scheduledStart, estimatedMinutes);
+  const validation = buildCreateTaskValidation({
+    title: task.title,
+    taskId,
+    scheduledStart,
+    scheduledEnd,
+    estimatedMinutes,
+    ignoreTaskId: taskId
+  });
 
   return createActionProposal({
     intent: "reschedule_task",
     title: `Reschedule: ${task.title}`,
-    summary: `Move "${task.title}" to ${formatDisplayTime(scheduledStart)}.`,
+    summary: `Validate and move "${task.title}" to ${formatDisplayTime(scheduledStart)}.`,
     payload: {
       task_id: taskId,
+      title: task.title,
       scheduled_start: scheduledStart,
-      scheduled_end: addMinutesIso(scheduledStart, estimatedMinutes),
-      estimated_minutes: estimatedMinutes
+      scheduled_end: scheduledEnd,
+      estimated_minutes: estimatedMinutes,
+      validation
     }
   });
 }
@@ -580,10 +591,23 @@ function applyProposal(intent, payload) {
   }
 
   if (intent === "reschedule_task") {
+    const validation = buildCreateTaskValidation({
+      title: payload.title ?? payload.task_id,
+      taskId: payload.task_id,
+      scheduledStart: payload.scheduled_start,
+      scheduledEnd: payload.scheduled_end ?? addMinutesIso(payload.scheduled_start, payload.estimated_minutes ?? 30),
+      estimatedMinutes: payload.estimated_minutes ?? 30,
+      ignoreTaskId: payload.task_id
+    });
+
+    if (validation.conflict_count > 0) {
+      throw new Error(`Task reschedule has ${validation.conflict_count} calendar conflict${validation.conflict_count === 1 ? "" : "s"}.`);
+    }
+
     sqlite
       .prepare("UPDATE tasks SET scheduled_start = ?, scheduled_end = ?, estimated_minutes = ?, updated_at = ? WHERE id = ?")
       .run(payload.scheduled_start, payload.scheduled_end, payload.estimated_minutes, new Date().toISOString(), payload.task_id);
-    return { task_id: payload.task_id };
+    return { task_id: payload.task_id, validation };
   }
 
   if (intent === "plan_day") {
@@ -772,7 +796,7 @@ function buildFreeWindows({ date, availableStart, availableEnd, replacePlanId = 
   }));
 }
 
-function selectBusyIntervalsForDate(date, { replacePlanId = null, includeTimeBlocks = true } = {}) {
+function selectBusyIntervalsForDate(date, { replacePlanId = null, includeTimeBlocks = true, ignoreTaskId = null } = {}) {
   const events = selectCalendarEventsForDate(date).map((event) => ({
     id: event.id,
     title: event.title,
@@ -791,10 +815,25 @@ function selectBusyIntervalsForDate(date, { replacePlanId = null, includeTimeBlo
         source: "time_block"
       }))
     : [];
+  const scheduledTasks = selectScheduledTaskIntervalsForDate(date, ignoreTaskId);
 
-  return [...events, ...blocks]
+  return [...events, ...blocks, ...scheduledTasks]
     .filter((item) => item.start && item.end && Date.parse(item.end) > Date.parse(item.start))
     .sort((a, b) => a.start.localeCompare(b.start));
+}
+
+function selectScheduledTaskIntervalsForDate(date, ignoreTaskId = null) {
+  return selectTasks()
+    .filter((task) => task.id !== ignoreTaskId)
+    .filter((task) => task.scheduled_start && task.scheduled_end && task.scheduled_start.slice(0, 10) === date && !DONE_TASK_STATUSES.includes(task.status))
+    .map((task) => ({
+      id: task.id,
+      title: task.title,
+      type: "task",
+      start: task.scheduled_start,
+      end: task.scheduled_end,
+      source: "scheduled_task"
+    }));
 }
 
 function subtractBusyIntervals(windows, busyIntervals) {
@@ -841,7 +880,7 @@ function buildPlanValidation({ date, availableStart, availableEnd, replacePlanId
   };
 }
 
-function buildCreateTaskValidation({ title, scheduledStart, scheduledEnd, estimatedMinutes }) {
+function buildCreateTaskValidation({ title, taskId = null, scheduledStart, scheduledEnd, estimatedMinutes, ignoreTaskId = null }) {
   if (!scheduledStart || !scheduledEnd) {
     return {
       policy: "validate_only_when_task_has_schedule",
@@ -854,19 +893,20 @@ function buildCreateTaskValidation({ title, scheduledStart, scheduledEnd, estima
 
   const date = scheduledStart.slice(0, 10);
   const checkedBlock = {
+    task_id: taskId,
     title,
     start_at: scheduledStart,
     end_at: scheduledEnd,
     estimated_minutes: estimatedMinutes
   };
-  const conflicts = findPlanConflicts(date, [checkedBlock], null);
+  const conflicts = findPlanConflicts(date, [checkedBlock], null, { ignoreTaskId });
 
   return {
     policy: "avoid_calendar_events_and_locked_time_blocks",
     scheduled: true,
     conflict_count: conflicts.length,
     checked_block: checkedBlock,
-    blocked_intervals: selectBusyIntervalsForDate(date, { includeTimeBlocks: true }),
+    blocked_intervals: selectBusyIntervalsForDate(date, { includeTimeBlocks: true, ignoreTaskId }),
     conflicts: conflicts.map((conflict) => ({
       title: conflict.busy.title,
       start: conflict.busy.start ?? conflict.busy.start_at,
@@ -876,8 +916,8 @@ function buildCreateTaskValidation({ title, scheduledStart, scheduledEnd, estima
   };
 }
 
-function findPlanConflicts(date, blocks, replacePlanId) {
-  const busyIntervals = selectBusyIntervalsForDate(date, { replacePlanId, includeTimeBlocks: true });
+function findPlanConflicts(date, blocks, replacePlanId, options = {}) {
+  const busyIntervals = selectBusyIntervalsForDate(date, { replacePlanId, includeTimeBlocks: true, ignoreTaskId: options.ignoreTaskId ?? null });
   const conflicts = [];
 
   for (const block of blocks) {

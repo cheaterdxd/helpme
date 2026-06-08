@@ -92,11 +92,14 @@ export async function handleAiCommand(rawMessage) {
       scheduledStart,
       estimatedMinutes: focus.duration_minutes
     });
+    const conflictCount = proposal.payload.validation?.conflict_count ?? 0;
 
     return {
       mode: "proposal",
       intent: "reschedule_task",
-      answer: "I prepared a reschedule proposal. I will only update the calendar after confirmation.",
+      answer: conflictCount
+        ? `I prepared the reschedule, but the requested time has ${conflictCount} calendar conflict${conflictCount === 1 ? "" : "s"}. I will not write it unless validation passes.`
+        : "I prepared a reschedule proposal. I will only update the calendar after confirmation.",
       proposal,
       related_context: { task_id: focus.task_id, scheduled_start: scheduledStart }
     };

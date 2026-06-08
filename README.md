@@ -33,7 +33,7 @@ The app currently exposes these screens:
 - Review: evening review and reschedule proposal.
 - Settings: local AI status and fallback mode.
 
-The Orb opens the command layer. Commands that mutate data create an `ai_action_proposal` first and only write to SQLite after confirmation. Inbox, task-creation, day-planning, and review-reschedule proposals show compact previews before confirmation. Scheduled task creation, day-planning, and review-reschedule proposals validate calendar conflicts before writing.
+The Orb opens the command layer. Commands that mutate data create an `ai_action_proposal` first and only write to SQLite after confirmation. Inbox, task-creation, reschedule, day-planning, and review-reschedule proposals show compact previews before confirmation. Scheduled task creation, reschedule, day-planning, and review-reschedule proposals validate calendar conflicts before writing.
 
 ## API Surface
 

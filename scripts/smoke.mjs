@@ -169,7 +169,7 @@ async function runSmokeChecks() {
   assert(/conflict/i.test(conflictConfirm.body?.error ?? ""), "Rejected create_task should explain conflict");
 
   const create = await postJson("/api/ai/command", {
-    message: "Nhac toi ngay mai 8h hoc AWS 1h"
+    message: "Nhac toi ngay mai 8:30 hoc AWS 60 phut"
   });
   assert(create.intent === "create_task", "Create command should return create_task intent");
   assert(create.proposal?.id, "Create command should create proposal");
@@ -179,6 +179,24 @@ async function runSmokeChecks() {
   assert(confirmed.ok === true, "Confirm proposal should return ok");
   assert(confirmed.result?.task_id, "Confirm create_task should return task_id");
   assert(confirmed.result.validation?.conflict_count === 0, "Confirmed create_task should include validation result");
+
+  const rescheduleConflict = await postJson("/api/ai/command", {
+    message: "move sang ngay mai 8:30h"
+  });
+  assert(rescheduleConflict.intent === "reschedule_task", "Conflicting reschedule should return reschedule_task intent");
+  assert(rescheduleConflict.proposal?.payload?.validation?.conflict_count > 0, "Conflicting reschedule should report conflicts");
+  const rescheduleConflictConfirm = await postJsonExpectFailure(`/api/ai/proposals/${rescheduleConflict.proposal.id}/confirm`, {});
+  assert(rescheduleConflictConfirm.status === 400, "Confirm conflicting reschedule_task should be rejected");
+  assert(/conflict/i.test(rescheduleConflictConfirm.body?.error ?? ""), "Rejected reschedule_task should explain conflict");
+
+  const rescheduleClear = await postJson("/api/ai/command", {
+    message: "move sang ngay mai 10h"
+  });
+  assert(rescheduleClear.intent === "reschedule_task", "Clear reschedule should return reschedule_task intent");
+  assert(rescheduleClear.proposal?.payload?.validation?.conflict_count === 0, "Clear reschedule should validate empty slot");
+  const rescheduleConfirmed = await postJson(`/api/ai/proposals/${rescheduleClear.proposal.id}/confirm`, {});
+  assert(rescheduleConfirmed.ok === true, "Confirm clear reschedule should return ok");
+  assert(rescheduleConfirmed.result?.validation?.conflict_count === 0, "Confirmed reschedule should include validation result");
 }
 
 async function waitForHealth() {
