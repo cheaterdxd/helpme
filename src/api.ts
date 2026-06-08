@@ -48,6 +48,28 @@ export async function confirmProposal(proposalId: string) {
   });
 }
 
+export async function completeTask(taskId: string) {
+  return postEmpty(`/api/tasks/${taskId}/complete`, "HelpMe could not complete this task.");
+}
+
+export async function reopenTask(taskId: string) {
+  return postEmpty(`/api/tasks/${taskId}/reopen`, "HelpMe could not reopen this task.");
+}
+
+export async function logHabitToday(habitId: string) {
+  return postEmpty(`/api/habits/${habitId}/log`, "HelpMe could not log this habit.");
+}
+
+function postEmpty<T = unknown>(url: string, errorMessage: string) {
+  return requestJson<T>(url, errorMessage, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({})
+  });
+}
+
 async function requestJson<T>(url: string, errorMessage: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
 

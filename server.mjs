@@ -9,6 +9,7 @@ import { createServer as createViteServer } from "vite";
 import { aiCommandRequestSchema, handleAiCommand } from "./server/ai/command.mjs";
 import { getOllamaStatus } from "./server/ai/ollama-client.mjs";
 import {
+  completeTask,
   confirmActionProposal,
   getCalendarView,
   getDeadlineRadar,
@@ -17,7 +18,9 @@ import {
   getReviewSummary,
   getTaskCollections,
   getTodayView,
-  organizeInboxIntoProposal
+  logHabitToday,
+  organizeInboxIntoProposal,
+  reopenTask
 } from "./server/db/app-queries.mjs";
 import { buildNowBriefing } from "./server/db/now-query.mjs";
 import { seedDatabase } from "./server/db/seed.mjs";
@@ -52,6 +55,28 @@ app.get("/api/today", async () => getTodayView());
 
 app.get("/api/tasks", async () => getTaskCollections());
 
+app.post("/api/tasks/:id/complete", async (request, reply) => {
+  const taskId = typeof request.params?.id === "string" ? request.params.id : "";
+  const result = completeTask(taskId);
+
+  if (!result.ok) {
+    return reply.code(404).send(result);
+  }
+
+  return result;
+});
+
+app.post("/api/tasks/:id/reopen", async (request, reply) => {
+  const taskId = typeof request.params?.id === "string" ? request.params.id : "";
+  const result = reopenTask(taskId);
+
+  if (!result.ok) {
+    return reply.code(404).send(result);
+  }
+
+  return result;
+});
+
 app.post("/api/inbox/organize", async () => organizeInboxIntoProposal());
 
 app.get("/api/calendar", async () => getCalendarView());
@@ -59,6 +84,17 @@ app.get("/api/calendar", async () => getCalendarView());
 app.get("/api/deadlines", async () => getDeadlineRadar());
 
 app.get("/api/habits", async () => getHabitDashboard());
+
+app.post("/api/habits/:id/log", async (request, reply) => {
+  const habitId = typeof request.params?.id === "string" ? request.params.id : "";
+  const result = logHabitToday(habitId);
+
+  if (!result.ok) {
+    return reply.code(404).send(result);
+  }
+
+  return result;
+});
 
 app.get("/api/goals", async () => getGoalsOverview());
 

@@ -376,6 +376,54 @@ export function createActionProposal({ intent, title, summary, payload }) {
   };
 }
 
+export function completeTask(taskId) {
+  const task = selectTasks().find((item) => item.id === taskId);
+  if (!task) {
+    return { ok: false, error: "Task not found." };
+  }
+
+  if (task.status === "done") {
+    return { ok: true, task_id: taskId, status: "done", unchanged: true };
+  }
+
+  sqlite.prepare("UPDATE tasks SET status = 'done', updated_at = ? WHERE id = ?").run(new Date().toISOString(), taskId);
+  return { ok: true, task_id: taskId, status: "done" };
+}
+
+export function reopenTask(taskId) {
+  const task = selectTasks().find((item) => item.id === taskId);
+  if (!task) {
+    return { ok: false, error: "Task not found." };
+  }
+
+  sqlite.prepare("UPDATE tasks SET status = 'todo', updated_at = ? WHERE id = ?").run(new Date().toISOString(), taskId);
+  return { ok: true, task_id: taskId, status: "todo" };
+}
+
+export function logHabitToday(habitId) {
+  const habit = sqlite.prepare("SELECT id, title, streak FROM habits WHERE id = ? AND status = 'active'").get(habitId);
+  if (!habit) {
+    return { ok: false, error: "Habit not found." };
+  }
+
+  const today = getTodayDate();
+  const existing = sqlite.prepare("SELECT id FROM habit_logs WHERE habit_id = ? AND log_date = ? LIMIT 1").get(habitId, today);
+  if (existing) {
+    return { ok: true, habit_id: habitId, log_date: today, unchanged: true };
+  }
+
+  const now = new Date().toISOString();
+  const logId = `habit_log_${randomUUID()}`;
+  sqlite.transaction(() => {
+    sqlite
+      .prepare("INSERT INTO habit_logs (id, habit_id, log_date, value, note, created_at) VALUES (?, ?, ?, 1, ?, ?)")
+      .run(logId, habitId, today, "Manual check-in", now);
+    sqlite.prepare("UPDATE habits SET streak = streak + 1, updated_at = ? WHERE id = ?").run(now, habitId);
+  })();
+
+  return { ok: true, habit_id: habitId, log_id: logId, log_date: today };
+}
+
 export function rankOpenTasks(tasks = selectTasks(), deadlines = selectDeadlines(), options = {}) {
   return createPlannerDecision({
     tasks,

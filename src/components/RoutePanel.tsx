@@ -7,6 +7,7 @@ import {
   Inbox,
   ListChecks,
   Radar,
+  RotateCcw,
   Sparkles,
   Target
 } from "lucide-react";
@@ -21,9 +22,12 @@ type RoutePanelProps = {
   data: AppData | null;
   error: string;
   onCommand: (message: string) => Promise<void>;
+  onCompleteTask: (taskId: string) => Promise<void>;
+  onReopenTask: (taskId: string) => Promise<void>;
+  onLogHabit: (habitId: string) => Promise<void>;
 };
 
-export function RoutePanel({ route, data, error, onCommand }: RoutePanelProps) {
+export function RoutePanel({ route, data, error, onCommand, onCompleteTask, onReopenTask, onLogHabit }: RoutePanelProps) {
   if (error) {
     return (
       <section className="route-panel" aria-label={routeMeta[route].label} data-active="true">
@@ -44,17 +48,25 @@ export function RoutePanel({ route, data, error, onCommand }: RoutePanelProps) {
     );
   }
 
-  if (route === "today") return <TodayView data={data} onCommand={onCommand} />;
+  if (route === "today") return <TodayView data={data} onCommand={onCommand} onCompleteTask={onCompleteTask} />;
   if (route === "inbox") return <InboxView data={data} onCommand={onCommand} />;
   if (route === "calendar") return <CalendarView data={data} onCommand={onCommand} />;
   if (route === "deadlines") return <DeadlinesView radar={data.deadlines} />;
   if (route === "goals") return <GoalsView data={data} />;
-  if (route === "habits") return <HabitsView data={data} />;
-  if (route === "review") return <ReviewView data={data} onCommand={onCommand} />;
+  if (route === "habits") return <HabitsView data={data} onLogHabit={onLogHabit} />;
+  if (route === "review") return <ReviewView data={data} onCommand={onCommand} onCompleteTask={onCompleteTask} onReopenTask={onReopenTask} />;
   return <SettingsView data={data} />;
 }
 
-function TodayView({ data, onCommand }: { data: AppData; onCommand: (message: string) => Promise<void> }) {
+function TodayView({
+  data,
+  onCommand,
+  onCompleteTask
+}: {
+  data: AppData;
+  onCommand: (message: string) => Promise<void>;
+  onCompleteTask: (taskId: string) => Promise<void>;
+}) {
   return (
     <section className="os-view" aria-label="Today">
       <ViewHeader
@@ -83,7 +95,13 @@ function TodayView({ data, onCommand }: { data: AppData; onCommand: (message: st
             <h2>{data.today.suggested_focus.title}</h2>
             <p>{data.today.suggested_focus.reason}</p>
           </div>
-          <span>{data.today.suggested_focus.duration_minutes}m</span>
+          <div className="focus-actions">
+            <span>{data.today.suggested_focus.duration_minutes}m</span>
+            <button type="button" onClick={() => void onCompleteTask(data.today.suggested_focus!.task_id)}>
+              <CheckCircle2 aria-hidden="true" size={15} />
+              <span>Done</span>
+            </button>
+          </div>
         </section>
       )}
 
@@ -109,6 +127,10 @@ function TodayView({ data, onCommand }: { data: AppData; onCommand: (message: st
           </div>
         ))}
       </div>
+      <section className="os-section">
+        <h2>Today tasks</h2>
+        <TaskList tasks={data.tasks.today} empty="No task scheduled or due today." onCompleteTask={onCompleteTask} />
+      </section>
     </section>
   );
 }
@@ -242,7 +264,7 @@ function GoalsView({ data }: { data: AppData }) {
   );
 }
 
-function HabitsView({ data }: { data: AppData }) {
+function HabitsView({ data, onLogHabit }: { data: AppData; onLogHabit: (habitId: string) => Promise<void> }) {
   return (
     <section className="os-view" aria-label="Habits">
       <ViewHeader
@@ -261,6 +283,10 @@ function HabitsView({ data }: { data: AppData }) {
             </div>
             <b>{habit.completion_rate}%</b>
             <p>{habit.insight}</p>
+            <button className="inline-action" type="button" onClick={() => void onLogHabit(habit.id)}>
+              <CheckCircle2 aria-hidden="true" size={15} />
+              <span>Check today</span>
+            </button>
           </section>
         ))}
       </div>
@@ -268,7 +294,17 @@ function HabitsView({ data }: { data: AppData }) {
   );
 }
 
-function ReviewView({ data, onCommand }: { data: AppData; onCommand: (message: string) => Promise<void> }) {
+function ReviewView({
+  data,
+  onCommand,
+  onCompleteTask,
+  onReopenTask
+}: {
+  data: AppData;
+  onCommand: (message: string) => Promise<void>;
+  onCompleteTask: (taskId: string) => Promise<void>;
+  onReopenTask: (taskId: string) => Promise<void>;
+}) {
   return (
     <section className="os-view" aria-label="Review">
       <ViewHeader
@@ -283,7 +319,7 @@ function ReviewView({ data, onCommand }: { data: AppData; onCommand: (message: s
       <div className="split-grid">
         <section>
           <h2>Unfinished</h2>
-          <TaskList tasks={data.review.unfinished} empty="No unfinished task in today's plan." />
+          <TaskList tasks={data.review.unfinished} empty="No unfinished task in today's plan." onCompleteTask={onCompleteTask} />
         </section>
         <section>
           <h2>Suggested reschedule</h2>
@@ -295,6 +331,10 @@ function ReviewView({ data, onCommand }: { data: AppData; onCommand: (message: s
               </div>
             ))}
           </div>
+        </section>
+        <section>
+          <h2>Completed</h2>
+          <TaskList tasks={data.review.completed} empty="No completed task in today's plan." onReopenTask={onReopenTask} />
         </section>
       </div>
     </section>
@@ -405,7 +445,17 @@ function ScoreChips({
   );
 }
 
-function TaskList({ tasks, empty }: { tasks: ApiTask[]; empty: string }) {
+function TaskList({
+  tasks,
+  empty,
+  onCompleteTask,
+  onReopenTask
+}: {
+  tasks: ApiTask[];
+  empty: string;
+  onCompleteTask?: (taskId: string) => Promise<void>;
+  onReopenTask?: (taskId: string) => Promise<void>;
+}) {
   if (!tasks.length) {
     return <p className="empty-state">{empty}</p>;
   }
@@ -426,6 +476,18 @@ function TaskList({ tasks, empty }: { tasks: ApiTask[]; empty: string }) {
               <CircleAlert aria-hidden="true" size={13} />
               {task.due_at.slice(0, 10)}
             </small>
+          )}
+          {onCompleteTask && task.status !== "done" && (
+            <button className="row-action" type="button" onClick={() => void onCompleteTask(task.id)}>
+              <CheckCircle2 aria-hidden="true" size={14} />
+              <span>Done</span>
+            </button>
+          )}
+          {onReopenTask && task.status === "done" && (
+            <button className="row-action" type="button" onClick={() => void onReopenTask(task.id)}>
+              <RotateCcw aria-hidden="true" size={14} />
+              <span>Reopen</span>
+            </button>
           )}
         </article>
       ))}

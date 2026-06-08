@@ -43,10 +43,13 @@ Core endpoints:
 - `GET /api/now`
 - `GET /api/today`
 - `GET /api/tasks`
+- `POST /api/tasks/:id/complete`
+- `POST /api/tasks/:id/reopen`
 - `POST /api/inbox/organize`
 - `GET /api/calendar`
 - `GET /api/deadlines`
 - `GET /api/habits`
+- `POST /api/habits/:id/log`
 - `GET /api/goals`
 - `GET /api/review`
 - `GET /api/ai/status`

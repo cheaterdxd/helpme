@@ -65,6 +65,17 @@ async function runSmokeChecks() {
   assert(Array.isArray(tasks.inbox), "Tasks should include inbox collection");
   assert(Array.isArray(tasks.open), "Tasks should include open collection");
 
+  const focusTaskId = today.suggested_focus.task_id;
+  const complete = await postJson(`/api/tasks/${focusTaskId}/complete`, {});
+  assert(complete.ok === true, "Complete task should return ok");
+  const afterComplete = await getJson("/api/tasks");
+  assert(afterComplete.done.some((task) => task.id === focusTaskId), "Completed task should move to done collection");
+
+  const reopen = await postJson(`/api/tasks/${focusTaskId}/reopen`, {});
+  assert(reopen.ok === true, "Reopen task should return ok");
+  const afterReopen = await getJson("/api/tasks");
+  assert(afterReopen.open.some((task) => task.id === focusTaskId), "Reopened task should move back to open collection");
+
   const deadlines = await getJson("/api/deadlines");
   assert(Array.isArray(deadlines.today), "Deadline radar should include today group");
   assert(Array.isArray(deadlines.this_week), "Deadline radar should include this_week group");
@@ -72,6 +83,14 @@ async function runSmokeChecks() {
   const aiStatus = await getJson("/api/ai/status");
   assert(aiStatus.provider === "ollama", "AI status should report Ollama provider");
   assert(typeof aiStatus.ok === "boolean", "AI status should expose ok boolean");
+
+  const habits = await getJson("/api/habits");
+  const habit = habits.find((item) => item.id === "habit_study_aws") ?? habits[0];
+  const habitLog = await postJson(`/api/habits/${habit.id}/log`, {});
+  assert(habitLog.ok === true, "Log habit should return ok");
+  const habitsAfterLog = await getJson("/api/habits");
+  const updatedHabit = habitsAfterLog.find((item) => item.id === habit.id);
+  assert(updatedHabit.logged_count >= habit.logged_count, "Logged habit count should not decrease");
 
   const plan = await postJson("/api/ai/command", {
     message: "Hom nay toi ranh tu 20h den 23h, sap lich giup toi"

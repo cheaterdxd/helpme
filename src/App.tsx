@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { askHelpMe, confirmProposal, fetchAppData, fetchNowBriefing } from "./api";
+import { askHelpMe, completeTask, confirmProposal, fetchAppData, fetchNowBriefing, logHabitToday, reopenTask } from "./api";
 import { AskOrb } from "./components/AskOrb";
 import { AskOverlay } from "./components/AskOverlay";
 import { ContextDrawer } from "./components/ContextDrawer";
@@ -99,6 +99,21 @@ export function App() {
     }
   }
 
+  async function handleCompleteTask(taskId: string) {
+    await completeTask(taskId);
+    await loadAllData();
+  }
+
+  async function handleReopenTask(taskId: string) {
+    await reopenTask(taskId);
+    await loadAllData();
+  }
+
+  async function handleLogHabit(habitId: string) {
+    await logHabitToday(habitId);
+    await loadAllData();
+  }
+
   return (
     <div className="app-shell">
       <TopBar
@@ -118,7 +133,15 @@ export function App() {
             error={briefingError}
           />
         ) : (
-          <RoutePanel route={activeRoute} data={appData} error={appError} onCommand={handleAsk} />
+          <RoutePanel
+            route={activeRoute}
+            data={appData}
+            error={appError}
+            onCommand={handleAsk}
+            onCompleteTask={handleCompleteTask}
+            onReopenTask={handleReopenTask}
+            onLogHabit={handleLogHabit}
+          />
         )}
       </main>
 

@@ -949,12 +949,40 @@ p {
   color: var(--muted);
 }
 
-.focus-band > span {
+.focus-actions {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.focus-actions > span {
   padding: 8px 10px;
   border-radius: 999px;
   background: var(--accent);
   color: #ffffff;
   font-weight: 800;
+}
+
+.focus-actions button,
+.inline-action,
+.row-action {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border-color: var(--accent);
+  background: var(--panel);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 780;
+  white-space: nowrap;
+}
+
+.inline-action {
+  justify-self: start;
 }
 
 .planner-card {
@@ -1015,6 +1043,15 @@ p {
   gap: 10px;
 }
 
+.os-section {
+  display: grid;
+  gap: 10px;
+}
+
+.os-section h2 {
+  font-size: 16px;
+}
+
 .timeline-row,
 .task-row,
 .compact-list > div,
@@ -1063,7 +1100,7 @@ p {
 
 .task-row {
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) auto;
+  grid-template-columns: 26px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
 }
@@ -1272,7 +1309,7 @@ p {
     grid-template-columns: 38px minmax(0, 1fr);
   }
 
-  .focus-band > span {
+  .focus-actions {
     grid-column: 2;
     justify-self: start;
   }
@@ -1289,7 +1326,8 @@ p {
     grid-template-columns: 24px minmax(0, 1fr);
   }
 
-  .task-row small {
+  .task-row small,
+  .row-action {
     grid-column: 2;
     justify-self: start;
   }
