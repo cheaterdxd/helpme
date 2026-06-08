@@ -693,7 +693,7 @@ p {
   color: var(--ink);
 }
 
-.proposal-card span {
+.proposal-card > span {
   color: var(--accent);
   font-size: 11px;
   font-weight: 800;
@@ -709,6 +709,48 @@ p {
 .proposal-card p {
   color: var(--muted);
   font-size: 13px;
+}
+
+.proposal-preview {
+  display: grid;
+  gap: 7px;
+}
+
+.proposal-preview-group {
+  display: grid;
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid rgba(155, 179, 62, 0.34);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.proposal-preview-group > span {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.proposal-preview-item {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.proposal-preview-item strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proposal-preview-item small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .proposal-actions {
@@ -1050,6 +1092,7 @@ p {
 .calendar-rail,
 .goal-stack,
 .habit-grid,
+.inbox-lanes,
 .settings-grid {
   display: grid;
   gap: 10px;
@@ -1131,6 +1174,102 @@ p {
 
 .calendar-rail {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.inbox-lanes {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+}
+
+.inbox-lane {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.inbox-lane > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.inbox-lane > header > span {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-soft);
+  color: var(--accent);
+}
+
+.inbox-lane header div {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 1;
+  gap: 8px;
+}
+
+.inbox-lane h2 {
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.inbox-lane small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.inbox-lane > div {
+  display: grid;
+  gap: 8px;
+}
+
+.inbox-card {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.inbox-card strong {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.inbox-card span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.inbox-card footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.inbox-card footer small {
+  padding: 4px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-soft);
+  color: var(--accent);
+  font-weight: 760;
 }
 
 .time-card {
@@ -1304,12 +1443,13 @@ p {
   }
 
   .metric-strip,
-  .calendar-rail,
-  .radar-grid,
-  .habit-grid,
-  .settings-grid,
-  .split-grid,
-  .goal-row {
+    .calendar-rail,
+    .radar-grid,
+    .habit-grid,
+    .inbox-lanes,
+    .settings-grid,
+    .split-grid,
+    .goal-row {
     grid-template-columns: 1fr;
   }
 

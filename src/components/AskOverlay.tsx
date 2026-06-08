@@ -1,6 +1,6 @@
 import { Check, Send, X } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import type { AskResponse, NowBriefing } from "../types";
+import type { AiActionProposal, AskResponse, InboxOrganizationAction, NowBriefing } from "../types";
 
 type AskOverlayProps = {
   briefing: NowBriefing;
@@ -59,6 +59,7 @@ export function AskOverlay({
               <span>{answer.proposal.intent}</span>
               <h3>{answer.proposal.title}</h3>
               <p>{answer.proposal.summary}</p>
+              <ProposalPreview proposal={answer.proposal} />
               <div className="proposal-actions">
                 <button type="button" className="confirm-button" onClick={() => void onConfirmProposal(answer.proposal!.id)}>
                   <Check aria-hidden="true" size={15} />
@@ -88,4 +89,45 @@ export function AskOverlay({
       </form>
     </section>
   );
+}
+
+function ProposalPreview({ proposal }: { proposal: AiActionProposal }) {
+  if (proposal.intent !== "organize_inbox") return null;
+
+  const actions = getInboxActions(proposal);
+  if (!actions.length) return null;
+
+  const allGroups: Array<[string, InboxOrganizationAction[]]> = [
+    ["Learning", actions.filter((action) => action.group === "learning")],
+    ["Project", actions.filter((action) => action.group === "project")],
+    ["Personal", actions.filter((action) => action.group === "personal")]
+  ];
+  const groups = allGroups.filter(([, groupActions]) => groupActions.length);
+
+  return (
+    <div className="proposal-preview" aria-label="Inbox organization preview">
+      {groups.map(([label, groupActions]) => (
+        <section className="proposal-preview-group" key={label}>
+          <span>{label}</span>
+          {groupActions.map((action) => (
+            <div className="proposal-preview-item" key={action.task_id}>
+              <strong>{action.title}</strong>
+              <small>
+                {action.project_title ?? action.goal_title ?? "Unlinked"} / P{action.priority} / {action.estimated_minutes}m
+              </small>
+            </div>
+          ))}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function getInboxActions(proposal: AiActionProposal): InboxOrganizationAction[] {
+  const value = proposal.payload.actions;
+  if (!Array.isArray(value)) return [];
+
+  return value.filter((action) => {
+    return action && typeof action.task_id === "string" && typeof action.title === "string";
+  });
 }

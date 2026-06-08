@@ -97,6 +97,22 @@ export type AskResponse = {
   }>;
 };
 
+export type InboxOrganizationAction = {
+  task_id: string;
+  title: string;
+  from_status: string;
+  target_status: string;
+  group: "learning" | "project" | "personal" | string;
+  group_label: string;
+  goal_id: string;
+  goal_title: string | null;
+  project_id: string | null;
+  project_title: string | null;
+  priority: number;
+  estimated_minutes: number;
+  reason: string;
+};
+
 export type ApiTask = {
   id: string;
   goal_id: string;
@@ -309,7 +325,9 @@ export type AiActionProposal = {
   intent: string;
   title: string;
   summary: string;
-  payload: Record<string, unknown>;
+  payload: Record<string, unknown> & {
+    actions?: InboxOrganizationAction[];
+  };
   status: "pending" | "confirmed" | "cancelled";
   created_at: string;
 };

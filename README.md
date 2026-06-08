@@ -25,7 +25,7 @@ The app currently exposes these screens:
 
 - Now: next useful action.
 - Today: timeline, suggested focus, overload signal, planner score.
-- Inbox: captured tasks and AI organize proposal.
+- Inbox: captured tasks, AI grouping lanes, and confirm-first organize proposal.
 - Calendar: time blocks and events.
 - Deadlines: overdue, today, this week, later.
 - Goals: goal -> project -> task.
@@ -33,7 +33,7 @@ The app currently exposes these screens:
 - Review: evening review and reschedule proposal.
 - Settings: local AI status and fallback mode.
 
-The Orb opens the command layer. Commands that mutate data create an `ai_action_proposal` first and only write to SQLite after confirmation.
+The Orb opens the command layer. Commands that mutate data create an `ai_action_proposal` first and only write to SQLite after confirmation. Inbox organization proposals show per-task target goal, project, priority, and effort before confirmation.
 
 ## API Surface
 

@@ -103,6 +103,28 @@ async function runSmokeChecks() {
   const updatedHabit = habitsAfterLog.find((item) => item.id === habit.id);
   assert(updatedHabit.logged_count >= habit.logged_count, "Logged habit count should not decrease");
 
+  const organize = await postJson("/api/ai/command", {
+    message: "Organize inbox"
+  });
+  assert(organize.intent === "organize_inbox", "Organize command should return organize_inbox intent");
+  assert(organize.mode === "proposal", "Organize command should return proposal mode");
+  assert(Array.isArray(organize.proposal?.payload?.actions), "Organize proposal should include actions");
+  assert(organize.proposal.payload.actions.length > 0, "Organize proposal should include at least one action");
+  assert(organize.proposal.payload.actions.some((action) => action.group === "learning"), "Organize proposal should classify learning tasks");
+
+  const organizeConfirmed = await postJson(`/api/ai/proposals/${organize.proposal.id}/confirm`, {});
+  assert(organizeConfirmed.ok === true, "Confirm organize proposal should return ok");
+  assert(
+    organizeConfirmed.result?.organized_tasks === organize.proposal.payload.actions.length,
+    "Confirm organize proposal should apply every action"
+  );
+  const afterOrganize = await getJson("/api/tasks");
+  assert(afterOrganize.inbox.length === 0, "Organize confirm should clear seeded inbox");
+  assert(
+    afterOrganize.open.some((task) => task.id === "task_inbox_aws_whitepaper" && task.project_title),
+    "Organized inbox task should move into open work with project context"
+  );
+
   const plan = await postJson("/api/ai/command", {
     message: "Hom nay toi ranh tu 20h den 23h, sap lich giup toi"
   });

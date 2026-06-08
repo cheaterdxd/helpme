@@ -215,18 +215,20 @@ export function getReviewSummary() {
 
 export function organizeInboxIntoProposal() {
   const inboxTasks = selectTasks().filter((task) => task.status === "inbox");
-  const groups = groupInboxTasks(inboxTasks);
+  const actions = buildInboxOrganizationActions(inboxTasks);
+  const groups = groupInboxActions(actions);
   const proposal = createActionProposal({
     intent: "organize_inbox",
     title: "Organize inbox",
-    summary: `Move ${inboxTasks.length} inbox task${inboxTasks.length === 1 ? "" : "s"} into working lists.`,
+    summary: `Classify ${inboxTasks.length} inbox task${inboxTasks.length === 1 ? "" : "s"} into goals, projects, and priorities.`,
     payload: {
+      actions,
       groups,
       task_ids: inboxTasks.map((task) => task.id)
     }
   });
 
-  return { groups, proposal };
+  return { actions, groups, proposal };
 }
 
 export function createPlanDayProposal({ availableStart = "20:00", availableEnd = "23:00" } = {}) {
@@ -563,8 +565,37 @@ function applyProposal(intent, payload) {
   }
 
   if (intent === "organize_inbox") {
+    const now = new Date().toISOString();
+    const actions = Array.isArray(payload.actions) ? payload.actions.map(normalizeInboxAction).filter(Boolean) : [];
+
+    if (actions.length) {
+      for (const action of actions) {
+        sqlite
+          .prepare(
+            `UPDATE tasks
+             SET status = ?, goal_id = ?, project_id = ?, priority = ?, estimated_minutes = ?, updated_at = ?
+             WHERE id = ?`
+          )
+          .run(
+            action.target_status,
+            action.goal_id,
+            action.project_id,
+            action.priority,
+            action.estimated_minutes,
+            now,
+            action.task_id
+          );
+      }
+
+      return {
+        organized_tasks: actions.length,
+        groups: countBy(actions, "group"),
+        updated_fields: ["status", "goal_id", "project_id", "priority", "estimated_minutes"]
+      };
+    }
+
     for (const taskId of payload.task_ids ?? []) {
-      sqlite.prepare("UPDATE tasks SET status = 'todo', updated_at = ? WHERE id = ?").run(new Date().toISOString(), taskId);
+      sqlite.prepare("UPDATE tasks SET status = 'todo', updated_at = ? WHERE id = ?").run(now, taskId);
     }
 
     return { organized_tasks: payload.task_ids?.length ?? 0 };
@@ -714,12 +745,104 @@ function buildHabitInsight(habit) {
   return `${habit.title} is below target; schedule a smaller block.`;
 }
 
-function groupInboxTasks(tasks) {
-  return {
-    learning: tasks.filter((task) => /aws|study|read|learn/i.test(task.title)),
-    project: tasks.filter((task) => /helpme|report|design|product/i.test(task.title)),
-    personal: tasks.filter((task) => !/aws|study|read|learn|helpme|report|design|product/i.test(task.title))
+function buildInboxOrganizationActions(tasks) {
+  const targets = {
+    learning: {
+      label: "Learning",
+      goal_id: "goal_learning",
+      project_id: "project_aws_security",
+      priority_floor: 60,
+      reason: "Learning material should stay with the AWS/security study track."
+    },
+    project: {
+      label: "Project",
+      goal_id: "goal_helpme_ai_life_admin",
+      project_id: "project_helpme_mvp_ui",
+      priority_floor: 70,
+      reason: "HelpMe product work should remain close to the active MVP build."
+    },
+    personal: {
+      label: "Personal",
+      goal_id: "goal_personal_focus",
+      project_id: "project_evening_reset",
+      priority_floor: 25,
+      reason: "Small life-admin items should stay outside the core work lane."
+    }
   };
+
+  return tasks.map((task) => {
+    const group = classifyInboxTask(task);
+    const target = resolveInboxTarget(targets[group], task);
+
+    return {
+      task_id: task.id,
+      title: task.title,
+      from_status: task.status,
+      target_status: "todo",
+      group,
+      group_label: targets[group].label,
+      goal_id: target.goal_id,
+      goal_title: target.goal_title,
+      project_id: target.project_id,
+      project_title: target.project_title,
+      priority: Math.max(task.priority ?? 0, targets[group].priority_floor),
+      estimated_minutes: task.estimated_minutes ?? 30,
+      reason: targets[group].reason
+    };
+  });
+}
+
+function classifyInboxTask(task) {
+  if (/aws|study|read|learn|whitepaper/i.test(task.title)) return "learning";
+  if (/helpme|report|design|product|mvp|ui|ux/i.test(task.title)) return "project";
+  return "personal";
+}
+
+function resolveInboxTarget(config, task) {
+  const goal =
+    sqlite.prepare("SELECT id, title FROM goals WHERE id = ?").get(config.goal_id) ??
+    sqlite.prepare("SELECT id, title FROM goals WHERE id = ?").get(task.goal_id) ??
+    sqlite.prepare("SELECT id, title FROM goals ORDER BY is_north_star DESC, priority DESC LIMIT 1").get();
+  const project =
+    sqlite.prepare("SELECT id, title FROM projects WHERE id = ?").get(config.project_id) ??
+    sqlite.prepare("SELECT id, title FROM projects WHERE id = ?").get(task.project_id);
+
+  return {
+    goal_id: goal?.id ?? task.goal_id,
+    goal_title: goal?.title ?? task.goal_title ?? null,
+    project_id: project?.id ?? task.project_id ?? null,
+    project_title: project?.title ?? task.project_title ?? null
+  };
+}
+
+function groupInboxActions(actions) {
+  return {
+    learning: actions.filter((action) => action.group === "learning"),
+    project: actions.filter((action) => action.group === "project"),
+    personal: actions.filter((action) => action.group === "personal")
+  };
+}
+
+function normalizeInboxAction(action) {
+  if (!action || typeof action !== "object" || typeof action.task_id !== "string") return null;
+
+  return {
+    task_id: action.task_id,
+    target_status: typeof action.target_status === "string" ? action.target_status : "todo",
+    group: typeof action.group === "string" ? action.group : "personal",
+    goal_id: typeof action.goal_id === "string" ? action.goal_id : null,
+    project_id: typeof action.project_id === "string" ? action.project_id : null,
+    priority: Number.isFinite(action.priority) ? action.priority : 50,
+    estimated_minutes: Number.isFinite(action.estimated_minutes) ? action.estimated_minutes : 30
+  };
+}
+
+function countBy(items, key) {
+  return items.reduce((counts, item) => {
+    const value = item[key] ?? "unknown";
+    counts[value] = (counts[value] ?? 0) + 1;
+    return counts;
+  }, {});
 }
 
 function timeToMinutes(value) {

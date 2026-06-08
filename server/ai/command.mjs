@@ -35,13 +35,13 @@ export async function handleAiCommand(rawMessage) {
   const normalized = normalize(message);
 
   if (looksLikeInboxCommand(normalized)) {
-    const { groups, proposal } = organizeInboxIntoProposal();
+    const { actions, groups, proposal } = organizeInboxIntoProposal();
     return {
       mode: "proposal",
       intent: "organize_inbox",
-      answer: "I grouped the inbox. I will only move tasks after confirmation.",
+      answer: "I grouped the inbox into goal/project lanes. I will only write these changes after confirmation.",
       proposal,
-      related_context: { groups }
+      related_context: { actions, groups }
     };
   }
 

@@ -1,9 +1,12 @@
 import {
   Activity,
   AlarmClock,
+  BookOpen,
   CalendarDays,
   CheckCircle2,
   CircleAlert,
+  Folder,
+  Home,
   Inbox,
   ListChecks,
   Play,
@@ -195,6 +198,8 @@ function TodayView({
 }
 
 function InboxView({ data, onCommand }: { data: AppData; onCommand: (message: string) => Promise<void> }) {
+  const lanes = buildInboxLanes(data.tasks.inbox);
+
   return (
     <section className="os-view" aria-label="Inbox">
       <ViewHeader
@@ -206,7 +211,39 @@ function InboxView({ data, onCommand }: { data: AppData; onCommand: (message: st
         onAction={() => onCommand("Organize inbox")}
       />
 
-      <TaskList tasks={data.tasks.inbox} empty="Inbox is clear." />
+      {data.tasks.inbox.length ? (
+        <div className="inbox-lanes">
+          {lanes.map((lane) => (
+            <section className="inbox-lane" key={lane.key}>
+              <header>
+                <span>{lane.icon}</span>
+                <div>
+                  <h2>{lane.label}</h2>
+                  <small>{lane.tasks.length}</small>
+                </div>
+              </header>
+              <div>
+                {lane.tasks.length ? (
+                  lane.tasks.map((task) => (
+                    <article className="inbox-card" key={task.id}>
+                      <strong>{task.title}</strong>
+                      <span>{task.project_title ?? task.goal_title ?? "Unlinked"}</span>
+                      <footer>
+                        <small>P{task.priority}</small>
+                        <small>{task.estimated_minutes ?? 30}m</small>
+                      </footer>
+                    </article>
+                  ))
+                ) : (
+                  <p className="empty-state">Clear</p>
+                )}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <p className="empty-state">Inbox is clear.</p>
+      )}
     </section>
   );
 }
@@ -567,4 +604,35 @@ function formatDuration(start: string, end: string) {
   }
 
   return `${minutes}m`;
+}
+
+function buildInboxLanes(tasks: ApiTask[]) {
+  const lanes = [
+    {
+      key: "learning",
+      label: "Learning",
+      icon: <BookOpen aria-hidden="true" size={17} />,
+      tasks: tasks.filter((task) => classifyInboxTask(task) === "learning")
+    },
+    {
+      key: "project",
+      label: "Project",
+      icon: <Folder aria-hidden="true" size={17} />,
+      tasks: tasks.filter((task) => classifyInboxTask(task) === "project")
+    },
+    {
+      key: "personal",
+      label: "Personal",
+      icon: <Home aria-hidden="true" size={17} />,
+      tasks: tasks.filter((task) => classifyInboxTask(task) === "personal")
+    }
+  ];
+
+  return lanes;
+}
+
+function classifyInboxTask(task: ApiTask) {
+  if (/aws|study|read|learn|whitepaper/i.test(task.title)) return "learning";
+  if (/helpme|report|design|product|mvp|ui|ux/i.test(task.title)) return "project";
+  return "personal";
 }
