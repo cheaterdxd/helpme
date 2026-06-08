@@ -727,6 +727,11 @@ p {
   background: rgba(255, 255, 255, 0.58);
 }
 
+.proposal-preview-summary[data-state="conflict"] {
+  border-color: rgba(178, 92, 42, 0.48);
+  background: #fff6ef;
+}
+
 .proposal-preview-summary b {
   color: var(--ink);
   font-size: 13px;
@@ -778,7 +783,8 @@ p {
 }
 
 .proposal-timeline,
-.proposal-review {
+.proposal-review,
+.proposal-create {
   max-height: min(300px, 34vh);
   overflow-y: auto;
   padding-right: 2px;
@@ -833,6 +839,21 @@ p {
   border: 1px dashed rgba(178, 92, 42, 0.48);
   border-radius: var(--radius);
   background: #fff6ef;
+}
+
+.proposal-conflicts {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border: 1px dashed rgba(178, 92, 42, 0.48);
+  border-radius: var(--radius);
+  background: #fff6ef;
+}
+
+.proposal-conflicts small {
+  color: var(--warning);
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .proposal-actions {

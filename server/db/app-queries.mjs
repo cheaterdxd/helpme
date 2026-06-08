@@ -298,16 +298,28 @@ export function createPlanDayProposal({ availableStart = "20:00", availableEnd =
 }
 
 export function createTaskProposal({ title, dueAt = null, scheduledStart = null, estimatedMinutes = 30, priority = 50 }) {
+  const scheduledEnd = scheduledStart ? addMinutesIso(scheduledStart, estimatedMinutes) : null;
+  const validation = buildCreateTaskValidation({
+    title,
+    scheduledStart,
+    scheduledEnd,
+    estimatedMinutes
+  });
+
   return createActionProposal({
     intent: "create_task",
     title: `Create task: ${title}`,
-    summary: scheduledStart ? `Schedule "${title}" at ${formatDisplayTime(scheduledStart)}.` : `Add "${title}" to your task list.`,
+    summary: scheduledStart
+      ? `Validate and schedule "${title}" at ${formatDisplayTime(scheduledStart)}.`
+      : `Add "${title}" to your task list.`,
     payload: {
       title,
       due_at: dueAt,
       scheduled_start: scheduledStart,
+      scheduled_end: scheduledEnd,
       estimated_minutes: estimatedMinutes,
-      priority
+      priority,
+      validation
     }
   });
 }
@@ -532,6 +544,16 @@ function applyProposal(intent, payload) {
     const id = `task_${randomUUID()}`;
     const now = new Date().toISOString();
     const defaultGoal = sqlite.prepare("SELECT id FROM goals ORDER BY is_north_star DESC, priority DESC LIMIT 1").get();
+    const validation = buildCreateTaskValidation({
+      title: payload.title,
+      scheduledStart: payload.scheduled_start ?? null,
+      scheduledEnd: payload.scheduled_end ?? (payload.scheduled_start ? addMinutesIso(payload.scheduled_start, payload.estimated_minutes ?? 30) : null),
+      estimatedMinutes: payload.estimated_minutes ?? 30
+    });
+
+    if (validation.conflict_count > 0) {
+      throw new Error(`Task schedule has ${validation.conflict_count} calendar conflict${validation.conflict_count === 1 ? "" : "s"}.`);
+    }
 
     sqlite
       .prepare(
@@ -549,12 +571,12 @@ function applyProposal(intent, payload) {
         payload.estimated_minutes ?? 30,
         payload.due_at ?? null,
         payload.scheduled_start ?? null,
-        payload.scheduled_start ? addMinutesIso(payload.scheduled_start, payload.estimated_minutes ?? 30) : null,
+        payload.scheduled_end ?? (payload.scheduled_start ? addMinutesIso(payload.scheduled_start, payload.estimated_minutes ?? 30) : null),
         now,
         now
       );
 
-    return { task_id: id };
+    return { task_id: id, validation };
   }
 
   if (intent === "reschedule_task") {
@@ -816,6 +838,41 @@ function buildPlanValidation({ date, availableStart, availableEnd, replacePlanId
     scheduled_blocks: blocks.length,
     scheduled_minutes: sumMinutes(blocks.map((block) => ({ start_at: block.start_at, end_at: block.end_at }))),
     considered_tasks: taskCount
+  };
+}
+
+function buildCreateTaskValidation({ title, scheduledStart, scheduledEnd, estimatedMinutes }) {
+  if (!scheduledStart || !scheduledEnd) {
+    return {
+      policy: "validate_only_when_task_has_schedule",
+      scheduled: false,
+      conflict_count: 0,
+      blocked_intervals: [],
+      checked_block: null
+    };
+  }
+
+  const date = scheduledStart.slice(0, 10);
+  const checkedBlock = {
+    title,
+    start_at: scheduledStart,
+    end_at: scheduledEnd,
+    estimated_minutes: estimatedMinutes
+  };
+  const conflicts = findPlanConflicts(date, [checkedBlock], null);
+
+  return {
+    policy: "avoid_calendar_events_and_locked_time_blocks",
+    scheduled: true,
+    conflict_count: conflicts.length,
+    checked_block: checkedBlock,
+    blocked_intervals: selectBusyIntervalsForDate(date, { includeTimeBlocks: true }),
+    conflicts: conflicts.map((conflict) => ({
+      title: conflict.busy.title,
+      start: conflict.busy.start ?? conflict.busy.start_at,
+      end: conflict.busy.end ?? conflict.busy.end_at,
+      source: conflict.busy.source ?? conflict.busy.type ?? "existing_block"
+    }))
   };
 }
 

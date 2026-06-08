@@ -159,15 +159,26 @@ async function runSmokeChecks() {
     "Confirm review should reschedule every proposed task"
   );
 
+  const createConflict = await postJson("/api/ai/command", {
+    message: "Nhac toi 20h hoc AWS 1h"
+  });
+  assert(createConflict.intent === "create_task", "Conflicting create command should return create_task intent");
+  assert(createConflict.proposal?.payload?.validation?.conflict_count > 0, "Conflicting create proposal should report conflicts");
+  const conflictConfirm = await postJsonExpectFailure(`/api/ai/proposals/${createConflict.proposal.id}/confirm`, {});
+  assert(conflictConfirm.status === 400, "Confirm conflicting create_task should be rejected");
+  assert(/conflict/i.test(conflictConfirm.body?.error ?? ""), "Rejected create_task should explain conflict");
+
   const create = await postJson("/api/ai/command", {
     message: "Nhac toi ngay mai 8h hoc AWS 1h"
   });
   assert(create.intent === "create_task", "Create command should return create_task intent");
   assert(create.proposal?.id, "Create command should create proposal");
+  assert(create.proposal.payload.validation?.conflict_count === 0, "Create proposal should validate clear scheduled slot");
 
   const confirmed = await postJson(`/api/ai/proposals/${create.proposal.id}/confirm`, {});
   assert(confirmed.ok === true, "Confirm proposal should return ok");
   assert(confirmed.result?.task_id, "Confirm create_task should return task_id");
+  assert(confirmed.result.validation?.conflict_count === 0, "Confirmed create_task should include validation result");
 }
 
 async function waitForHealth() {
@@ -199,6 +210,26 @@ async function postJson(path, body) {
     },
     body: JSON.stringify(body)
   });
+}
+
+async function postJsonExpectFailure(path, body) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+  const text = await response.text();
+
+  if (response.ok) {
+    throw new Error(`POST ${path} should have failed but returned ${response.status}: ${text}`);
+  }
+
+  return {
+    status: response.status,
+    body: text ? JSON.parse(text) : null
+  };
 }
 
 async function requestJson(path, { timeoutMs = 6000, ...init }) {

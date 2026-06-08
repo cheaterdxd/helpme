@@ -67,11 +67,14 @@ export async function handleAiCommand(rawMessage) {
   if (looksLikeCreateTaskCommand(normalized)) {
     const parsed = parseCreateTask(message);
     const proposal = createTaskProposal(parsed);
+    const conflictCount = proposal.payload.validation?.conflict_count ?? 0;
 
     return {
       mode: "proposal",
       intent: "create_task",
-      answer: "I understood the new task. I will only add it to SQLite after confirmation.",
+      answer: conflictCount
+        ? `I understood the task, but the requested time has ${conflictCount} calendar conflict${conflictCount === 1 ? "" : "s"}. I will not write it unless validation passes.`
+        : "I understood the new task. I will only add it to SQLite after confirmation.",
       proposal,
       related_context: parsed
     };

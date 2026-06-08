@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import type {
   AiActionProposal,
   AskResponse,
+  CreateTaskValidation,
   InboxOrganizationAction,
   NowBriefing,
   PlanProposalBlock,
@@ -113,6 +114,10 @@ function ProposalPreview({ proposal }: { proposal: AiActionProposal }) {
     return <ReviewProposalPreview proposal={proposal} />;
   }
 
+  if (proposal.intent === "create_task") {
+    return <CreateTaskProposalPreview proposal={proposal} />;
+  }
+
   return null;
 }
 
@@ -198,6 +203,41 @@ function ReviewProposalPreview({ proposal }: { proposal: AiActionProposal }) {
   );
 }
 
+function CreateTaskProposalPreview({ proposal }: { proposal: AiActionProposal }) {
+  const validation = getCreateTaskValidation(proposal);
+  const title = typeof proposal.payload.title === "string" ? proposal.payload.title : proposal.title.replace(/^Create task:\s*/i, "");
+  const scheduledStart = typeof proposal.payload.scheduled_start === "string" ? proposal.payload.scheduled_start : null;
+  const scheduledEnd = typeof proposal.payload.scheduled_end === "string" ? proposal.payload.scheduled_end : null;
+  const estimatedMinutes = typeof proposal.payload.estimated_minutes === "number" ? proposal.payload.estimated_minutes : 30;
+  const conflictCount = validation?.conflict_count ?? 0;
+
+  return (
+    <div className="proposal-preview proposal-create" aria-label="Create task preview">
+      <div className="proposal-preview-summary" data-state={conflictCount ? "conflict" : "clear"}>
+        <b>{scheduledStart ? `${formatTime(scheduledStart)} / ${estimatedMinutes}m` : "Inbox"}</b>
+        <span>{conflictCount} conflicts</span>
+      </div>
+      <div className="proposal-review-row">
+        <strong>{title}</strong>
+        <small>
+          {scheduledStart && scheduledEnd
+            ? `${formatDate(scheduledStart)} / ${formatTime(scheduledStart)} - ${formatTime(scheduledEnd)}`
+            : `Priority ${proposal.payload.priority ?? 50} / unscheduled`}
+        </small>
+      </div>
+      {!!validation?.conflicts?.length && (
+        <div className="proposal-conflicts">
+          {validation.conflicts.map((conflict) => (
+            <small key={`${conflict.start}-${conflict.title}`}>
+              {formatTime(conflict.start)} - {formatTime(conflict.end)} / {conflict.title}
+            </small>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function getInboxActions(proposal: AiActionProposal): InboxOrganizationAction[] {
   const value = proposal.payload.actions;
   if (!Array.isArray(value)) return [];
@@ -234,6 +274,12 @@ function getReviewItems(proposal: AiActionProposal): ReviewRescheduleItem[] {
 function getReviewValidation(proposal: AiActionProposal): ReviewRescheduleValidation | null {
   const value = proposal.payload.validation;
   if (!value || !("scheduled_tasks" in value)) return null;
+  return value;
+}
+
+function getCreateTaskValidation(proposal: AiActionProposal): CreateTaskValidation | null {
+  const value = proposal.payload.validation;
+  if (!value || !("scheduled" in value)) return null;
   return value;
 }
 

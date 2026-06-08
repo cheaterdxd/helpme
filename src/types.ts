@@ -162,6 +162,32 @@ export type ReviewRescheduleValidation = {
   unscheduled_task_ids: string[];
 };
 
+export type CreateTaskValidation = {
+  policy: string;
+  scheduled: boolean;
+  conflict_count: number;
+  checked_block: null | {
+    title: string;
+    start_at: string;
+    end_at: string;
+    estimated_minutes: number;
+  };
+  blocked_intervals: Array<{
+    id: string;
+    title: string;
+    type: string;
+    start: string;
+    end: string;
+    source: string;
+  }>;
+  conflicts?: Array<{
+    title: string;
+    start: string;
+    end: string;
+    source: string;
+  }>;
+};
+
 export type ApiTask = {
   id: string;
   goal_id: string;
@@ -416,8 +442,13 @@ export type AiActionProposal = {
   payload: Record<string, unknown> & {
     actions?: InboxOrganizationAction[];
     blocks?: PlanProposalBlock[];
-    validation?: PlanProposalValidation | ReviewRescheduleValidation;
+    validation?: PlanProposalValidation | ReviewRescheduleValidation | CreateTaskValidation;
     reschedule?: ReviewRescheduleItem[];
+    title?: string;
+    scheduled_start?: string | null;
+    scheduled_end?: string | null;
+    estimated_minutes?: number;
+    priority?: number;
   };
   status: "pending" | "confirmed" | "cancelled";
   created_at: string;
