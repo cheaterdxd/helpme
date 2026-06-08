@@ -1,0 +1,7 @@
+{
+  "empty": "Bạn có thể hỏi vì sao nên làm việc này, HelpMe đang ẩn gì, hoặc nếu chỉ còn ít thời gian thì nên làm gì.",
+  "short_time": "Nếu chỉ có 30 phút, hãy chốt riêng nội dung màn Now. Review và Archive để phiên sau.",
+  "hidden_tasks": "Các việc bị ẩn vẫn được theo dõi. Chúng chưa hiện vì không giúp trực tiếp cho quyết định hiện tại.",
+  "goal_drift": "Bạn vẫn đúng hướng nếu HelpMe giữ nguyên nguyên tắc: chỉ hiện một quyết định, chi tiết mở khi cần.",
+  "default": "HelpMe chọn việc này vì nó bảo vệ lõi sản phẩm: AI lọc và ưu tiên thay bạn, thay vì bắt bạn đọc dashboard."
+}

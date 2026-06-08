@@ -1,0 +1,10 @@
+[
+  {
+    "id": "deadline_helpme_direction",
+    "title": "Settle HelpMe UX direction before implementation hardens",
+    "due_date": "2026-06-08",
+    "severity": "high",
+    "status": "watched",
+    "linked_goal_id": "goal_helpme_ai_life_admin"
+  }
+]

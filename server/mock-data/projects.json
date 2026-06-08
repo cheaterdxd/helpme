@@ -1,0 +1,9 @@
+[
+  {
+    "id": "project_helpme_mvp_ui",
+    "title": "MVP giao diện",
+    "status": "active",
+    "linked_goal_id": "goal_helpme_ai_life_admin",
+    "description": "Build the calm Now-first interface before adding heavy backend intelligence."
+  }
+]

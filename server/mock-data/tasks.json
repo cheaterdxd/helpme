@@ -1,0 +1,58 @@
+[
+  {
+    "id": "task_helpme_ux",
+    "title": "Finalize HelpMe UX direction",
+    "status": "open",
+    "priority": "high",
+    "estimated_minutes": 90,
+    "linked_goal_id": "goal_helpme_ai_life_admin",
+    "linked_project_id": "project_helpme_mvp_ui",
+    "due_date": "2026-06-08",
+    "visible_in_now": true
+  },
+  {
+    "id": "task_split_components",
+    "title": "Split UI into focused components",
+    "status": "open",
+    "priority": "medium",
+    "estimated_minutes": 45,
+    "linked_goal_id": "goal_helpme_ai_life_admin",
+    "visible_in_now": false
+  },
+  {
+    "id": "task_archive_placeholder",
+    "title": "Sketch Archive collapsed groups",
+    "status": "open",
+    "priority": "medium",
+    "estimated_minutes": 35,
+    "linked_goal_id": "goal_helpme_ai_life_admin",
+    "visible_in_now": false
+  },
+  {
+    "id": "task_review_placeholder",
+    "title": "Sketch Review reflection state",
+    "status": "open",
+    "priority": "medium",
+    "estimated_minutes": 30,
+    "linked_goal_id": "goal_helpme_ai_life_admin",
+    "visible_in_now": false
+  },
+  {
+    "id": "task_settings_placeholder",
+    "title": "Sketch Settings controls",
+    "status": "open",
+    "priority": "low",
+    "estimated_minutes": 25,
+    "linked_goal_id": "goal_helpme_ai_life_admin",
+    "visible_in_now": false
+  },
+  {
+    "id": "task_visual_polish",
+    "title": "Polish responsive UI spacing",
+    "status": "open",
+    "priority": "low",
+    "estimated_minutes": 40,
+    "linked_goal_id": "goal_helpme_ai_life_admin",
+    "visible_in_now": false
+  }
+]

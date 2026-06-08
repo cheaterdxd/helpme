@@ -1,0 +1,12 @@
+{
+  "proactivity_level": "calm",
+  "quiet_hours": {
+    "start": "22:30",
+    "end": "08:00"
+  },
+  "visual_effect_mode": "minimal",
+  "local_model": {
+    "enabled": false,
+    "provider": "mock"
+  }
+}

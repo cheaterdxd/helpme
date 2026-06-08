@@ -1,0 +1,9 @@
+[
+  {
+    "id": "goal_helpme_ai_life_admin",
+    "title": "Build HelpMe AI life admin",
+    "status": "active",
+    "north_star": true,
+    "description": "Build HelpMe as a calm AI-first life admin app that filters noise and selects the next useful decision."
+  }
+]

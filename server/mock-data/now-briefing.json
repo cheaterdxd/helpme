@@ -1,0 +1,177 @@
+{
+  "context_scan_line": "HelpMe đã xem mục tiêu, việc đang mở, hạn chót và thời gian rảnh.",
+  "main_decision": "Bây giờ nên chốt hướng UX tối giản cho HelpMe.",
+  "short_explanation": "Việc này mở khóa bước code prototype. Các việc khác tạm ẩn vì chưa giúp quyết định hiện tại.",
+  "selection_tree": {
+    "goals": [
+      {
+        "id": "goal_helpme_ai_life_admin",
+        "title": "HelpMe AI-first",
+        "projects": [
+          {
+            "id": "project_helpme_mvp_ui",
+            "title": "MVP giao diện",
+            "tasks": [
+              {
+                "id": "task_helpme_ux",
+                "title": "Chốt màn Now",
+                "duration_minutes": 90,
+                "fits_available_time": true,
+                "ai_recommended": true
+              },
+              {
+                "id": "task_archive_placeholder",
+                "title": "Phác Archive",
+                "duration_minutes": 35,
+                "fits_available_time": true,
+                "ai_recommended": false
+              },
+              {
+                "id": "task_review_placeholder",
+                "title": "Phác Review",
+                "duration_minutes": 30,
+                "fits_available_time": true,
+                "ai_recommended": false
+              }
+            ]
+          },
+          {
+            "id": "project_helpme_backend_shell",
+            "title": "Backend mỏng",
+            "tasks": [
+              {
+                "id": "task_mock_api",
+                "title": "Mock /api/now",
+                "duration_minutes": 45,
+                "fits_available_time": true,
+                "ai_recommended": false
+              },
+              {
+                "id": "task_mock_data",
+                "title": "Sắp mock data",
+                "duration_minutes": 40,
+                "fits_available_time": true,
+                "ai_recommended": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "goal_personal_focus",
+        "title": "Giữ nhịp cá nhân",
+        "projects": [
+          {
+            "id": "project_evening_reset",
+            "title": "Reset buổi tối",
+            "tasks": [
+              {
+                "id": "task_clear_inbox",
+                "title": "Dọn inbox",
+                "duration_minutes": 20,
+                "fits_available_time": true,
+                "ai_recommended": false
+              },
+              {
+                "id": "task_short_review",
+                "title": "Review nhanh",
+                "duration_minutes": 15,
+                "fits_available_time": true,
+                "ai_recommended": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "goal_learning",
+        "title": "Học kỹ thuật",
+        "projects": [
+          {
+            "id": "project_aws_security",
+            "title": "AWS Security",
+            "tasks": [
+              {
+                "id": "task_read_notes",
+                "title": "Đọc ghi chú",
+                "duration_minutes": 30,
+                "fits_available_time": true,
+                "ai_recommended": false
+              },
+              {
+                "id": "task_practice_questions",
+                "title": "Làm câu hỏi",
+                "duration_minutes": 45,
+                "fits_available_time": true,
+                "ai_recommended": false
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "focus_path": {
+    "goal": {
+      "id": "goal_helpme_ai_life_admin",
+      "title": "HelpMe AI-first"
+    },
+    "project": {
+      "id": "project_helpme_mvp_ui",
+      "title": "MVP giao diện"
+    },
+    "task": {
+      "id": "task_helpme_ux",
+      "title": "Chốt màn Now"
+    }
+  },
+  "next_best_action": {
+    "type": "task",
+    "title": "Làm một phiên tập trung để chốt màn Now trước.",
+    "task_id": "task_helpme_ux",
+    "duration_minutes": 90,
+    "linked_goal": "HelpMe AI life admin",
+    "metadata": {
+      "priority": "high",
+      "fits_available_time": true,
+      "deadline_relation": "prevents UX drift before implementation hardens"
+    }
+  },
+  "reason_summary": "Màn Now là lõi của HelpMe: một thời điểm, một quyết định.",
+  "risk_summary": "Nếu chưa chốt hướng này, app dễ trượt thành dashboard hoặc todo app thông thường.",
+  "collapsed_summary": {
+    "hidden_tasks_count": 5,
+    "watched_deadlines_count": 1,
+    "open_tasks_count": 6,
+    "mode": "focus-first"
+  },
+  "context_summary": {
+    "north_star": "Xây HelpMe thành app AI-first giúp chọn việc nên làm ngay, không phải dashboard.",
+    "hidden_tasks": "Năm việc khác vẫn được theo dõi, nhưng chưa cần hiện ở màn Now.",
+    "watched_deadline": "Cần chốt hướng UX trước khi code chi tiết bị lệch.",
+    "available_time": "Một phiên 90 phút phù hợp hơn việc chuyển qua lại nhiều task."
+  },
+  "suggested_actions": [
+    {
+      "label": "Bắt đầu",
+      "action_type": "start_focus",
+      "requires_confirmation": false
+    },
+    {
+      "label": "Xem lý do",
+      "action_type": "open_context_drawer",
+      "requires_confirmation": false
+    },
+    {
+      "label": "Đổi việc",
+      "action_type": "choose_alternative",
+      "requires_confirmation": false
+    }
+  ],
+  "suggested_questions": [
+    "Vì sao chọn việc này?",
+    "Đang ẩn những gì?",
+    "Tôi có đang lệch mục tiêu không?",
+    "Nếu chỉ có 30 phút thì sao?"
+  ]
+}
