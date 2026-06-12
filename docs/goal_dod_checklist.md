@@ -515,24 +515,61 @@ Assessment: partial to done for MVP release safety; missing deeper automated cov
 
 ## Recommended Next DOD Order
 
-1. Part 17 - AI Intent Parser v2
+Framework first:
+
+1. Part 17 - AI Orchestrator Harness v1
+   - Complete DOD `I5. AI Orchestrator Harness`.
+   - Move command execution into a lifecycle: understand, gather context, plan, validate, propose, log.
+   - Add quick/deep modes, budgets, safe error states, and proposal-first logging.
+
+2. Part 18 - AI Intent Parser v2
+   - Complete DOD `I1. AI Intent Parser`.
    - Replace command manual parsing with LLM structured extraction.
    - Validate with Zod.
    - Return error/clarification on LLM failure.
-   - Keep proposal-first safety.
 
-2. Part 25 should move earlier or be split as Part 17A - AI Orchestrator Harness v1
-   - The command handler will become hard to maintain if more LLM-backed features are added without orchestration.
+3. Part 19 - Proposal & Validation Runtime v2
+   - Strengthen DOD `K1. Proposal-First Mutation`.
+   - Add shared proposal payload conventions, cancel/reject status, common validators, and API/UI error shapes.
 
-3. Part 18 - Task CRUD v1
+4. Part 20 - Settings & Model Runtime Foundation
+   - Improve DOD `G. User-Visible Screens` and `I6. Local LLM Client`.
+   - Make model, timeout, deep mode, timezone, and working windows editable.
+
+5. Part 21 - Planner Engine Foundation v2
+   - Improve DOD `I2. AI Planner`, `I3. AI Prioritizer`, and `C2. Overload Warning`.
+   - Separate deterministic constraints from LLM-generated candidates.
+
+6. Part 22 - UI Interaction Framework v2
+   - Improve DOD `G. User-Visible Screens` and `K1. Proposal-First Mutation`.
+   - Standardize loading, empty, error, clarification, conflict, and proposal states.
+
+Feature verticals after framework:
+
+7. Part 23 - Task & Inbox Workflows v2
    - Add direct create/edit/cancel/schedule APIs and UI.
    - Reuse AI intent output for Orb task proposals.
 
-4. Part 20 - Reminders v1
+8. Part 24 - Reminder & Notification Engine v1
    - This unlocks the "daily assistant" promise more than another passive screen.
 
-5. Part 24 - Review/Morning Brief v2
+9. Part 25 - Calendar & Time Blocking v2
+   - Make calendar a practical scheduling surface after the validation framework exists.
+
+10. Part 26 - Deadline Workflows v2
+   - Turn deadline radar into CRUD, capture, explanation, reminder, and planner-impact workflows.
+
+11. Part 27 - Habits & Routine v2
+   - Finish habit editing and add routine proposals.
+
+12. Part 28 - Goals & Project Breakdown v2
+   - Add editable goals/projects, breakdown proposals, and progress checks.
+
+13. Part 29 - Review & Daily Assistant v2
    - Persist review entries and let the LLM synthesize the daily assistant layer.
+
+14. Part 30 - Production Hardening
+   - Harden config, backup/export, production serving, and release verification after the feature verticals are usable.
 
 ## Bottom Line
 

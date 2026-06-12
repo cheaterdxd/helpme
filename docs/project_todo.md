@@ -121,74 +121,92 @@ Note: Parts 1-9 were completed before the release rule was made strict, so some 
   - Commit: ab4b758
   - Verified: db:reset, check, build, smoke
 
-- [ ] Part 17 - AI Intent Parser v2
+### Phase 1 - Framework Completion
+
+- [ ] Part 17 - AI Orchestrator Harness v1
+  - Goal: complete the AI command framework lifecycle before adding more domain intents.
+  - Release:
+  - Commit:
+  - Verified:
+
+- [ ] Part 18 - AI Intent Parser v2
   - Goal: let AI extract Vietnamese command intent and structured fields; backend validates output, and LLM failure returns error/clarification instead of a manual parser fallback.
   - Release:
   - Commit:
   - Verified:
 
-- [ ] Part 18 - Task CRUD v1
-  - Goal: add direct task CRUD plus LLM-backed Orb task create/edit proposals.
+- [ ] Part 19 - Proposal & Validation Runtime v2
+  - Goal: harden shared proposal payloads, rejection/cancel status, validators, and safe API/UI error shapes.
   - Release:
   - Commit:
   - Verified:
 
-- [ ] Part 19 - Calendar v2
-  - Goal: add practical day/week calendar views, event/time-block APIs, and LLM-backed event/time-block proposals.
-  - Release:
-  - Commit:
-  - Verified:
-
-- [ ] Part 20 - Reminders v1
-  - Goal: activate reminders with LLM reminder capture and deterministic due/upcoming/done/snooze behavior.
-  - Release:
-  - Commit:
-  - Verified:
-
-- [ ] Part 21 - Habits v2
-  - Goal: make habits editable with LLM setup suggestions, habit insights, weekly completion, and deterministic streak handling.
-  - Release:
-  - Commit:
-  - Verified:
-
-- [ ] Part 22 - Deadlines v2
-  - Goal: add deadline CRUD, linking, LLM deadline extraction/explanation, and deterministic date buckets.
-  - Release:
-  - Commit:
-  - Verified:
-
-- [ ] Part 23 - Goals & Projects v2
-  - Goal: add editable goal/project/task relationships plus LLM-assisted goal/project/task breakdown.
-  - Release:
-  - Commit:
-  - Verified:
-
-- [ ] Part 24 - Daily Review & Morning Brief v2
-  - Goal: persist reviews and use LLM synthesis for morning brief, evening reflection, and reschedule suggestions.
-  - Release:
-  - Commit:
-  - Verified:
-
-- [ ] Part 25 - AI Orchestrator Harness & Command Expansion
-  - Goal: add LLM-aware orchestration lifecycle and expand Orb intents with validated proposal-first behavior.
-  - Release:
-  - Commit:
-  - Verified:
-
-- [ ] Part 26 - Planner Engine v2
-  - Goal: combine deterministic scheduling constraints with LLM-generated plan candidates, overload resolution, and explanations.
-  - Release:
-  - Commit:
-  - Verified:
-
-- [ ] Part 27 - Settings & Preferences
+- [ ] Part 20 - Settings & Model Runtime Foundation
   - Goal: make user preferences and model behavior settings editable and used by the AI orchestrator/planner.
   - Release:
   - Commit:
   - Verified:
 
-- [ ] Part 28 - Production Hardening
-  - Goal: harden config, backups, errors, production serving, and deployment docs.
+- [ ] Part 21 - Planner Engine Foundation v2
+  - Goal: combine deterministic scheduling constraints with LLM-generated plan candidates, overload resolution, and explanations.
+  - Release:
+  - Commit:
+  - Verified:
+
+- [ ] Part 22 - UI Interaction Framework v2
+  - Goal: standardize reusable loading, empty, error, clarification, conflict, and proposal states before adding more feature screens.
+  - Release:
+  - Commit:
+  - Verified:
+
+### Phase 2 - Domain Feature Verticals
+
+- [ ] Part 23 - Task & Inbox Workflows v2
+  - Goal: add direct task CRUD plus LLM-backed task create/edit/breakdown and inbox workflows.
+  - Release:
+  - Commit:
+  - Verified:
+
+- [ ] Part 24 - Reminder & Notification Engine v1
+  - Goal: activate reminders with LLM reminder capture and deterministic due/upcoming/done/snooze behavior.
+  - Release:
+  - Commit:
+  - Verified:
+
+- [ ] Part 25 - Calendar & Time Blocking v2
+  - Goal: add practical day/week calendar views, event/time-block APIs, and LLM-backed event/time-block proposals.
+  - Release:
+  - Commit:
+  - Verified:
+
+- [ ] Part 26 - Deadline Workflows v2
+  - Goal: add deadline CRUD, linking, LLM deadline extraction/explanation, reminders, and deterministic date buckets.
+  - Release:
+  - Commit:
+  - Verified:
+
+- [ ] Part 27 - Habits & Routine v2
+  - Goal: make habits editable with LLM setup suggestions, routine proposals, weekly completion, and deterministic streak handling.
+  - Release:
+  - Commit:
+  - Verified:
+
+- [ ] Part 28 - Goals & Project Breakdown v2
+  - Goal: add editable goal/project/task relationships plus LLM-assisted goal/project/task breakdown and progress checks.
+  - Release:
+  - Commit:
+  - Verified:
+
+- [ ] Part 29 - Review & Daily Assistant v2
+  - Goal: persist reviews and use LLM synthesis for morning brief, evening reflection, and reschedule suggestions.
+  - Release:
+  - Commit:
+  - Verified:
+
+### Phase 3 - Production Hardening
+
+- [ ] Part 30 - Production Hardening
+  - Goal: harden config, backups, errors, production serving, and deployment docs after framework and feature verticals are usable.
   - Release:
   - Commit:
   - Verified:

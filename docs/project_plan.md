@@ -54,141 +54,231 @@ LLM failure policy:
 
 ## Roadmap
 
-### Part 17 - AI Intent Parser v2
+The build order is framework-first, then feature verticals. Do not expand multiple domain features before the framework gates are complete. A feature is not "done" just because a screen exists; it must pass through the shared API, validation, proposal, verification, and UI state framework.
 
-Let AI handle natural-language understanding for Vietnamese commands, while the backend owns schema validation, safety, conflict checks, and error handling.
+### Phase 1 - Framework Completion
+
+Finish the app skeleton, AI command runtime, validation contracts, settings, and verification foundation first.
+
+#### Part 17 - AI Orchestrator Harness v1
+
+Build the command execution framework before adding more domain intents.
+
+DOD targets:
+- `I5. AI Orchestrator Harness`
+- `K1. Proposal-First Mutation`
+- `K2. Verification`
+
+Key outcomes:
+- Add an orchestrator lifecycle: understand, gather context, plan, validate, propose, log.
+- Add task modes: `quick` for simple model extraction and `deep` for multi-step planning.
+- Enforce budgets: timeout, max steps, max context size, and no chain-of-thought exposure.
+- Standardize safe error/clarification responses.
+- Keep `/api/ai/command` stable while moving command logic out of a growing if/else handler.
+- Smoke covers orchestrator success, validation failure, LLM failure, and proposal-first behavior.
+
+#### Part 18 - AI Intent Parser v2
+
+Use the orchestrator to let AI handle Vietnamese natural-language understanding, while backend code owns schema validation and safety.
+
+DOD targets:
+- `I1. AI Intent Parser`
+- `I6. Local LLM Client`
+- `K1. Proposal-First Mutation`
 
 Key outcomes:
 - Add an AI intent extraction step for commands such as `8h hoc AWS 1h`, `ngay mai 8:30`, `toi mai 20h`, `trong 60 phut`, and `tu 20h den 23h`.
 - Require AI output to match a strict schema: intent, entity ids or text, date, start time, end time, duration, confidence, and missing fields.
 - Backend validates all AI output before creating a proposal; invalid or low-confidence output asks for clarification or returns an error.
 - Remove broad manual parsing from the command handler instead of building a large rule parser.
-- Add smoke or focused tests for AI output validation, LLM failure behavior, and proposal-first safety.
+- AI runs are logged and smoke/focused tests cover valid output, invalid JSON, low confidence, and missing fields.
 
-### Part 18 - Task CRUD v1
+#### Part 19 - Proposal & Validation Runtime v2
+
+Harden the mutation framework used by every future feature.
+
+DOD targets:
+- `K1. Proposal-First Mutation`
+- `K2. Verification`
+
+Key outcomes:
+- Add shared proposal payload conventions: title, summary, preview data, validation, warnings, and source AI run.
+- Add proposal cancel/reject status and API.
+- Add consistent validation error shape for API and Orb UI.
+- Add shared validators for entity ids, date ranges, scheduled blocks, and conflict-sensitive writes.
+- Smoke covers confirm, reject, already-confirmed, invalid proposal, and conflict rejection paths.
+
+#### Part 20 - Settings & Model Runtime Foundation
+
+Make runtime behavior configurable before planner/domain logic depends on it.
+
+DOD targets:
+- `G. User-Visible Screens`
+- `I6. Local LLM Client`
+
+Key outcomes:
+- Add settings APIs for timezone, working windows, quiet hours, preferred model, model timeout, deep-mode toggle, and display name.
+- Settings UI edits the key preferences instead of only displaying AI status.
+- AI orchestrator and planner read settings instead of constants where appropriate.
+- Smoke covers updating working window, model timeout, and planning with the new window.
+
+#### Part 21 - Planner Engine Foundation v2
+
+Separate deterministic constraints from LLM-generated plan candidates.
+
+DOD targets:
+- `I2. AI Planner`
+- `I3. AI Prioritizer`
+- `C2. Overload Warning`
+
+Key outcomes:
+- Backend computes hard constraints: available windows, conflicts, due buckets, task duration, and existing schedule.
+- LLM proposes plan candidates, overload resolution, priority tradeoffs, and short explanations.
+- Backend validates selected candidates before creating proposals.
+- Planner uses settings-defined working windows instead of hard-coded evening windows.
+- Smoke covers overload handling, available-minute limits, and invalid LLM plan rejection.
+
+#### Part 22 - UI Interaction Framework v2
+
+Finish reusable UI states before adding more feature screens.
+
+DOD targets:
+- `G. User-Visible Screens`
+- `K1. Proposal-First Mutation`
+
+Key outcomes:
+- Standardize loading, empty, error, conflict, clarification, and proposal states.
+- Add reusable proposal preview patterns for create/edit/reschedule/breakdown flows.
+- Ensure Orb and route panels do not hide primary actions on desktop/mobile.
+- Add focused UI smoke or browser checks for core flows.
+
+### Phase 2 - Domain Feature Verticals
+
+After the framework phase, build features as vertical slices: API, validation, UI, Orb command, proposal flow, persistence, and smoke verification together.
+
+#### Part 23 - Task & Inbox Workflows v2
 
 Make task management usable from both direct UI actions and LLM-backed Orb commands.
 
+DOD targets:
+- `B1. Add Task With Natural Language`
+- `B2. Create Task From Vague Input`
+- `B3. Break Down Large Task`
+- `K1. Proposal-First Mutation`
+
 Key outcomes:
-- Add direct APIs for create, update, cancel/archive, priority, due date, and schedule.
-- Backend validates schedule conflicts when a task gets a time block.
+- Add direct APIs for create, update, cancel/archive, priority, due date, schedule, and link/unlink goal/project.
 - UI supports lightweight task editing from task rows or a compact editor.
-- Orb task creation/editing uses the AI intent parser to produce structured proposals instead of manual text parsing.
-- Smoke covers create/update/cancel and conflict rejection.
+- Orb task creation/editing uses the AI intent parser to produce structured proposals.
+- Add `breakdown_task` proposal for large tasks.
+- Smoke covers create/update/cancel/link/breakdown and conflict rejection.
 
-### Part 19 - Calendar v2
+#### Part 24 - Reminder & Notification Engine v1
 
-Turn Calendar from a list into a practical planning surface, with LLM-assisted event creation and schedule explanation.
+Build the daily assistant's reminder backbone.
+
+DOD targets:
+- `J. Notification / Reminder Engine`
+- `B1. Add Task With Natural Language`
+
+Key outcomes:
+- Add APIs for due/upcoming reminders, create reminder, mark done, and snooze.
+- Orb can create reminders from natural language such as `nhac toi`, with model-extracted date/time/repeat fields.
+- Backend scheduler logic determines due/upcoming/done/snooze state without relying on the model.
+- Today and Settings show reminder state.
+- Smoke covers reminder creation, due list, snooze, and mark done.
+
+#### Part 25 - Calendar & Time Blocking v2
+
+Turn Calendar into a practical planning surface.
+
+DOD targets:
+- `D1. Time Blocking`
+- `D2. Automatic Reschedule`
 
 Key outcomes:
 - Add day/week lightweight calendar views.
 - Add APIs for calendar events and time blocks.
 - UI clearly separates busy time, free windows, and planned task blocks.
-- Planner continues to avoid conflicts with events, time blocks, and scheduled tasks.
-- Orb can propose events and time blocks from natural language, while backend code validates exact time ranges and conflicts.
-- Smoke covers event creation and planner conflict avoidance.
+- Orb can propose events and time blocks from natural language, while backend validates exact time ranges and conflicts.
+- Smoke covers event creation, time block update, planner conflict avoidance, and reschedule rejection.
 
-### Part 20 - Reminders v1
+#### Part 26 - Deadline Workflows v2
 
-Activate reminders as a real daily feature, using the LLM for natural reminder capture.
+Make Deadline Radar a management workflow, not only a read-only list.
 
-Key outcomes:
-- Add APIs for due/upcoming reminders, create reminder, mark done, and snooze.
-- Orb can create reminders from natural language such as `nhac toi`, with model-extracted date/time/repeat fields.
-- Today and Settings show reminder state.
-- Backend scheduler logic determines due/upcoming/done/snooze state without relying on the model.
-- Smoke covers reminder creation, due list, and mark done.
-
-### Part 21 - Habits v2
-
-Make habit tracking more useful and editable, with LLM-generated setup suggestions and insights.
-
-Key outcomes:
-- Add APIs for create habit, pause habit, update target/frequency, and read logs.
-- UI shows weekly completion grid, check/uncheck today, streak, and target progress.
-- Orb can propose creating a habit from natural language and can summarize routine drift in short insight text.
-- Backend code owns habit frequency validation, log writes, weekly completion, and streak calculation.
-- Smoke covers create habit, log/unlog, and weekly completion update.
-
-### Part 22 - Deadlines v2
-
-Make Deadline Radar a real management workflow, with LLM-assisted capture and explanation.
+DOD targets:
+- `C1. Deadline Radar`
+- `C2. Overload Warning`
 
 Key outcomes:
 - Add CRUD APIs for deadlines.
 - Link deadlines to task, project, or goal.
 - Use LLM to extract deadline title, due date, linked context, and severity hint from natural language.
-- Keep date buckets and conflict/schedule math deterministic in backend code.
-- Add Orb commands for creating deadlines and explaining pressure in plain language.
-- Smoke covers deadline creation, grouping, and planner scoring impact.
+- Keep date buckets and schedule math deterministic.
+- Add Orb commands for creating deadlines and explaining pressure.
+- Smoke covers deadline creation, grouping, reminder generation, and planner scoring impact.
 
-### Part 23 - Goals & Projects v2
+#### Part 27 - Habits & Routine v2
 
-Make goal/project/task relationships editable and useful, with LLM-assisted breakdown.
+Make habits editable and add routine generation.
+
+DOD targets:
+- `E1. Habit Tracking`
+- `E2. Routine Builder`
+
+Key outcomes:
+- Add APIs for create habit, pause habit, update target/frequency, and read logs.
+- UI shows weekly completion grid, check/uncheck today, streak, and target progress.
+- Orb can propose creating a habit and building a routine.
+- Backend owns habit frequency validation, log writes, weekly completion, and streak calculation.
+- Smoke covers create habit, log/unlog, routine proposal, and weekly completion update.
+
+#### Part 28 - Goals & Project Breakdown v2
+
+Make goal/project/task relationships editable and useful.
+
+DOD targets:
+- `F1. Manage Large Goals`
+- `F2. AI Progress Check`
 
 Key outcomes:
 - Add CRUD APIs for goals and projects.
 - Add link/unlink task to project/goal.
 - Goals UI shows real progress and project detail.
 - Orb can propose breaking a goal or large task into projects/tasks, including dependencies and suggested first action.
-- Backend validates entity links, stores proposals, and calculates progress from real tasks.
-- Smoke covers goal/project creation, task linking, and progress calculation.
+- Add progress check command using goal target, completed work, planned work, and deadlines.
+- Smoke covers goal/project creation, task linking, breakdown, and progress calculation.
 
-### Part 24 - Daily Review & Morning Brief v2
+#### Part 29 - Review & Daily Assistant v2
 
-Persist real review history and use the LLM to synthesize a useful daily assistant.
+Persist review history and use the LLM to synthesize a useful daily assistant.
+
+DOD targets:
+- `A1. Morning Brief`
+- `A3. Evening Review`
+- `I4. AI Reflection`
 
 Key outcomes:
 - Store review entries: energy, completed summary, skipped work, carried work.
-- Morning Brief uses yesterday review, today calendar, deadlines, and habits, then asks the LLM for a concise brief.
-- Review UI shows completed, carried over, and energy trend.
-- Evening Review uses LLM-generated reflection and reschedule suggestions, while backend code validates any proposed changes.
-- Smoke covers persisted review and brief reflection.
+- Morning Brief uses yesterday review, today calendar, deadlines, reminders, and habits, then asks the LLM for a concise brief.
+- Evening Review captures natural text, generates reflection, and proposes reschedules.
+- Backend validates any proposed schedule changes before writing.
+- Smoke covers persisted review, morning brief, and reschedule validation.
 
-### Part 25 - AI Orchestrator Harness & Command Expansion
+### Phase 3 - Production Hardening
 
-Replace the growing command-handler if/else flow with an LLM-aware orchestration harness, then expand Orb beyond the current core intents.
+#### Part 30 - Production Hardening
 
-Key outcomes:
-- Add an orchestrator lifecycle: understand, gather context, plan, validate, propose, log.
-- Add task modes: `quick` for simple model extraction and `deep` for multi-step planning.
-- Enforce budgets: timeout, max steps, max context size, and no chain-of-thought exposure.
-- Add intents: `create_deadline`, `create_habit`, `create_event`, `create_goal`, `breakdown_task`, `summarize_today`, and `weekly_plan`.
-- Mutating intents always create `ai_action_proposal`.
-- All AI outputs use Zod validation.
-- Ollama failure or invalid JSON returns a safe error/clarification state instead of silently guessing.
-- Smoke covers proposal and confirm path for key new intents.
+Prepare the app for real daily deployment after the framework and core feature verticals are usable.
 
-### Part 26 - Planner Engine v2
-
-Improve planning quality by combining deterministic constraints with LLM-generated planning proposals.
-
-Key outcomes:
-- Split planner into a clearer engine with deterministic constraints and LLM proposal generation.
-- Backend computes hard constraints: available windows, conflicts, due buckets, task duration, and existing schedule.
-- LLM proposes plan candidates, overload resolution, priority tradeoffs, and short explanations.
-- Backend validates selected candidates before creating proposals.
-- Planner uses settings-defined working windows instead of hard-coded evening windows.
-- Smoke covers overload handling and available-minute limits.
-
-### Part 27 - Settings & Preferences
-
-Make HelpMe configurable for the user and for model behavior.
-
-Key outcomes:
-- Add settings APIs for timezone, working windows, quiet hours, preferred model, model timeout, deep-mode toggle, and display name.
-- Settings UI edits key preferences.
-- AI orchestrator and planner read settings instead of constants where appropriate.
-- Smoke covers updating working window and planning with the new window.
-
-### Part 28 - Production Hardening
-
-Prepare the app for real daily deployment.
+DOD targets:
+- `K2. Verification`
 
 Key outcomes:
 - Harden env/config, DB path handling, logging, startup health, and production mode.
 - Add SQLite backup/export.
-- Add clear API failure and proposal rejection UI states.
+- Add clear API failure and proposal rejection UI states for production.
 - Recheck Docker and production docs.
 - Consider single-user auth if the app is deployed publicly.
 - Smoke covers production serving and core APIs.
