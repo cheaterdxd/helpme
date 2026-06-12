@@ -34,7 +34,7 @@ It is not yet complete as the final personal operating system in `docs/goal.md`.
 | Habit tracker | `[~] Partial` | Check-in/log, streak, completion, insight exist; create/edit/routine builder/deeper review missing. |
 | Goal manager | `[~] Partial` | Goal -> project -> task overview exists; CRUD, breakdown, true progress intelligence missing. |
 | Reminder/notification engine | `[ ] Missing` | Schema exists, but no usable reminder APIs/notifications. |
-| AI command layer | `[~] Partial` | Orb, proposals, confirm flow exist; orchestrator implemented, but AI intent parser not yet done. |
+| AI command layer | `[x] Done` | Orb, proposals, confirm flow exist; orchestrator and LLM intent parser fully implemented. |
 | Local LLM integration | `[~] Partial` | Ollama client/status/JSON call/logging exist; limited usage, not primary command brain. |
 | AI safety | `[~] Partial` | Proposal-first and conflict validation exist for several flows; not all mutating domains exist yet. |
 | Settings/preferences | `[ ] Missing` | Settings screen mainly displays local AI status; no editable preferences. |
@@ -365,17 +365,19 @@ Assessment: partial. Most tables exist, but several are not yet exposed through 
 ### I1. AI Intent Parser
 
 DOD:
-- [ ] LLM extracts intent and structured fields.
-- [ ] Zod validates intent output.
-- [ ] Low-confidence/missing fields returns clarification/error.
-- [ ] No broad manual parser fallback.
-- [ ] AI run logged.
+- [x] LLM extracts intent and structured fields.
+- [x] Zod validates intent output.
+- [x] Low-confidence/missing fields returns clarification/error.
+- [x] No broad manual parser fallback.
+- [x] AI run logged.
 
 Current evidence:
-- `server/ai/command.mjs` still uses `looksLike...` and manual parse helpers.
-- `server/ai/ollama-client.mjs` can call Ollama and validate JSON, but command intent does not use it yet.
+- `server/ai/command.mjs` uses `parseIntentWithLlm` to call Ollama.
+- Zod validator and confidence threshold checks are applied.
+- Intercepting fallback and offline states prevents manual parser guess fallback.
+- `ai_runs` table automatically logs the execution metadata.
 
-Assessment: missing for the target design; current implementation is manual-rule MVP.
+Assessment: done.
 
 ### I2. AI Planner
 

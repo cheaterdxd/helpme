@@ -18,6 +18,7 @@ const server = spawn(process.execPath, ["server.mjs"], {
     LOG_LEVEL: "error",
     HELPME_DB_PATH: dbPath,
     HELPME_TODAY: "2026-06-08",
+    HELPME_MOCK_AI: "true",
     OLLAMA_BASE_URL: process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434"
   },
   stdio: ["ignore", "pipe", "pipe"],
@@ -204,6 +205,14 @@ async function runSmokeChecks() {
   const rescheduleConfirmed = await postJson(`/api/ai/proposals/${rescheduleClear.proposal.id}/confirm`, {});
   assert(rescheduleConfirmed.ok === true, "Confirm clear reschedule should return ok");
   assert(rescheduleConfirmed.result?.validation?.conflict_count === 0, "Confirmed reschedule should include validation result");
+
+  // Verify low-confidence/fallback behavior
+  const fallbackCheck = await postJson("/api/ai/command", {
+    message: "abcxyz"
+  });
+  assert(fallbackCheck.intent === "fallback", "Unclear message should return fallback intent");
+  assert(fallbackCheck.mode === "answer", "Fallback should return answer mode");
+  assert(fallbackCheck.answer.includes("Tôi không hiểu rõ"), "Fallback answer should contain clarification instruction");
 }
 
 async function waitForHealth() {

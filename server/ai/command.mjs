@@ -31,6 +31,53 @@ const plannerSummaryValidator = z.object({
   reason: z.string().trim().min(1).max(320)
 });
 
+const intentParserJsonSchema = {
+  type: "object",
+  properties: {
+    intent: {
+      type: "string",
+      enum: [
+        "organize_inbox",
+        "plan_day",
+        "create_task",
+        "reschedule_task",
+        "deadline_radar",
+        "daily_review",
+        "explain_priority",
+        "fallback"
+      ]
+    },
+    confidence: { type: "number" },
+    title: { type: "string" },
+    scheduledStart: { type: "string" },
+    estimatedMinutes: { type: "number" },
+    priority: { type: "number" },
+    availableStart: { type: "string" },
+    availableEnd: { type: "string" }
+  },
+  required: ["intent", "confidence"]
+};
+
+const intentParserValidator = z.object({
+  intent: z.enum([
+    "organize_inbox",
+    "plan_day",
+    "create_task",
+    "reschedule_task",
+    "deadline_radar",
+    "daily_review",
+    "explain_priority",
+    "fallback"
+  ]),
+  confidence: z.number().min(0).max(1),
+  title: z.string().optional().nullable(),
+  scheduledStart: z.string().optional().nullable(),
+  estimatedMinutes: z.number().optional().nullable(),
+  priority: z.number().optional().nullable(),
+  availableStart: z.string().optional().nullable(),
+  availableEnd: z.string().optional().nullable()
+});
+
 export async function handleAiCommand(rawMessage) {
   return orchestrateAiCommand({
     rawMessage,
@@ -38,8 +85,68 @@ export async function handleAiCommand(rawMessage) {
   });
 }
 
+async function parseIntentWithLlm(message) {
+  const today = getTodayDate();
+  const prompt = [
+    "You are the intent parser for HelpMe, a calm local-first personal operating system.",
+    "Analyze the user's command in Vietnamese or English and extract the intent and fields.",
+    "Return JSON only conforming to the schema.",
+    "",
+    `Today is: ${today} (Timezone UTC+07:00, Vietnam Standard Time)`,
+    "",
+    "Allowed Intents:",
+    "- organize_inbox: user wants to group, sort, clean up, or organize inbox tasks (e.g. \"sắp xếp việc rời rạc\", \"organize inbox\").",
+    "- plan_day: user wants to plan the day or schedule time slots (e.g. \"lên kế hoạch\", \"xếp lịch 20h đến 23h\"). Extract availableStart (default \"20:00\") and availableEnd (default \"23:00\").",
+    "- create_task: user wants to add/create a new task or set a reminder (e.g. \"nhắc tôi 20h học AWS 1h\").",
+    "  Extract:",
+    "  * title: clean description of the task (exclude verbs like nhac toi/them/tao, and exclude dates/times/durations).",
+    "  * scheduledStart: resolve relative to today (e.g., \"ngày mai 8:30\" becomes \"2026-06-09T08:30:00+07:00\").",
+    "  * estimatedMinutes: task duration (e.g., \"1h\"/\"1 tieng\" -> 60, \"30 phut\" -> 30, default is 60).",
+    "  * priority: 90 if user mentions \"gấp\", \"khẩn cấp\", \"urgent\", \"quan trọng\", otherwise 55.",
+    "- reschedule_task: user wants to move, reschedule, or change time of a task (e.g. \"move sang ngày mai 8:30h\"). Extract scheduledStart.",
+    "- deadline_radar: user asks about deadlines, due dates, or overdue work (e.g. \"hạn chót\", \"deadline\", \"quá hạn\").",
+    "- daily_review: user wants to review their day, reflect, or summarize completed work (e.g. \"review cuối ngày\", \"tổng kết\").",
+    "- explain_priority: user asks why a task is prioritized or what to do next.",
+    "- fallback: command is empty, unclear, or does not match any other intent.",
+    "",
+    `User command: "${message}"`
+  ].join("\n");
+
+  const result = await runOllamaJson({
+    prompt,
+    schema: intentParserJsonSchema,
+    validator: intentParserValidator,
+    timeoutMs: 4000
+  });
+
+  if (!result.ok) {
+    throw new Error(result.error || "Ollama failed to parse intent.");
+  }
+
+  return result.value;
+}
+
 async function executeAiCommand({ message, normalized }) {
-  if (looksLikeInboxCommand(normalized)) {
+  let parsed;
+  try {
+    parsed = await parseIntentWithLlm(message);
+  } catch (error) {
+    return readOnlyAnswer(
+      "fallback",
+      "Hệ thống AI cục bộ đang ngoại tuyến hoặc phản hồi chậm. Bạn có thể sử dụng các màn hình trực tiếp để quản lý công việc.",
+      { error: error.message }
+    );
+  }
+
+  if (parsed.confidence < 0.5 || parsed.intent === "fallback") {
+    return readOnlyAnswer(
+      "fallback",
+      "Tôi không hiểu rõ câu lệnh của bạn. Bạn có thể làm rõ hoặc viết lại câu lệnh được không? (Ví dụ: 'nhắc tôi ngày mai 8:30 học bài')",
+      { intent: parsed.intent, confidence: parsed.confidence }
+    );
+  }
+
+  if (parsed.intent === "organize_inbox") {
     const { actions, groups, proposal } = organizeInboxIntoProposal();
     return {
       mode: "proposal",
@@ -50,8 +157,11 @@ async function executeAiCommand({ message, normalized }) {
     };
   }
 
-  if (looksLikePlanDayCommand(normalized)) {
-    const window = parseTimeWindow(message);
+  if (parsed.intent === "plan_day") {
+    const window = {
+      availableStart: parsed.availableStart || "20:00",
+      availableEnd: parsed.availableEnd || "23:00"
+    };
     const { blocks, proposal, validation } = createPlanDayProposal(window);
     const enriched = await enrichPlanSummary(message, blocks);
 
@@ -69,9 +179,15 @@ async function executeAiCommand({ message, normalized }) {
     };
   }
 
-  if (looksLikeCreateTaskCommand(normalized)) {
-    const parsed = parseCreateTask(message);
-    const proposal = createTaskProposal(parsed);
+  if (parsed.intent === "create_task") {
+    const params = {
+      title: parsed.title || "New task",
+      dueAt: parsed.scheduledStart || null,
+      scheduledStart: parsed.scheduledStart || null,
+      estimatedMinutes: parsed.estimatedMinutes || 60,
+      priority: parsed.priority || 55
+    };
+    const proposal = createTaskProposal(params);
     const conflictCount = proposal.payload.validation?.conflict_count ?? 0;
 
     return {
@@ -81,17 +197,17 @@ async function executeAiCommand({ message, normalized }) {
         ? `I understood the task, but the requested time has ${conflictCount} calendar conflict${conflictCount === 1 ? "" : "s"}. I will not write it unless validation passes.`
         : "I understood the new task. I will only add it to SQLite after confirmation.",
       proposal,
-      related_context: parsed
+      related_context: params
     };
   }
 
-  if (looksLikeRescheduleCommand(normalized)) {
+  if (parsed.intent === "reschedule_task") {
     const focus = getTodayView().suggested_focus;
     if (!focus) {
       return readOnlyAnswer("reschedule_task", "I could not find a suitable task to reschedule.", {});
     }
 
-    const scheduledStart = parseRelativeTomorrowAt(message) ?? `${addDays(getTodayDate(), 1)}T20:00:00+07:00`;
+    const scheduledStart = parsed.scheduledStart || `${addDays(getTodayDate(), 1)}T20:00:00+07:00`;
     const proposal = createRescheduleProposal({
       taskId: focus.task_id,
       scheduledStart,
@@ -110,7 +226,7 @@ async function executeAiCommand({ message, normalized }) {
     };
   }
 
-  if (looksLikeDeadlineQuestion(normalized)) {
+  if (parsed.intent === "deadline_radar") {
     const radar = getDeadlineRadar();
     const urgentCount = radar.overdue.length + radar.today.length;
     return readOnlyAnswer(
@@ -122,7 +238,7 @@ async function executeAiCommand({ message, normalized }) {
     );
   }
 
-  if (looksLikeReviewCommand(normalized)) {
+  if (parsed.intent === "daily_review") {
     const review = getReviewSummary();
     const proposal = createDailyReviewProposal();
 
@@ -135,19 +251,21 @@ async function executeAiCommand({ message, normalized }) {
     };
   }
 
-  const focus = rankOpenTasks()[0];
-  if (focus) {
-    return readOnlyAnswer(
-      "explain_priority",
-      `I am prioritizing "${focus.title}" because it scores ${focus.score}: ${focus.reason}`,
-      {
-        task_id: focus.id,
-        score: focus.score,
-        score_breakdown: focus.score_breakdown,
-        reason: focus.reason,
-        risk: focus.risk_summary
-      }
-    );
+  if (parsed.intent === "explain_priority") {
+    const focus = rankOpenTasks()[0];
+    if (focus) {
+      return readOnlyAnswer(
+        "explain_priority",
+        `I am prioritizing "${focus.title}" because it scores ${focus.score}: ${focus.reason}`,
+        {
+          task_id: focus.id,
+          score: focus.score,
+          score_breakdown: focus.score_breakdown,
+          reason: focus.reason,
+          risk: focus.risk_summary
+        }
+      );
+    }
   }
 
   return readOnlyAnswer("fallback", "I do not have enough context to recommend a next action yet.", {});
@@ -161,98 +279,6 @@ function readOnlyAnswer(intent, answer, relatedContext) {
     related_context: relatedContext,
     suggested_actions: []
   };
-}
-
-function looksLikeInboxCommand(value) {
-  return value.includes("inbox") || value.includes("organize") || value.includes("sap xep viec roi rac");
-}
-
-function looksLikePlanDayCommand(value) {
-  return value.includes("plan") || value.includes("ke hoach") || value.includes("sap lich") || value.includes("xep lich");
-}
-
-function looksLikeCreateTaskCommand(value) {
-  return value.includes("nhac toi") || value.includes("them task") || value.includes("tao task") || value.includes("add task");
-}
-
-function looksLikeRescheduleCommand(value) {
-  return value.includes("doi") || value.includes("reschedule") || value.includes("move") || value.includes("sang ngay mai");
-}
-
-function looksLikeDeadlineQuestion(value) {
-  return value.includes("deadline") || value.includes("han") || value.includes("qua han");
-}
-
-function looksLikeReviewCommand(value) {
-  return value.includes("review") || value.includes("cuoi ngay") || value.includes("tong ket");
-}
-
-function parseCreateTask(message) {
-  const normalized = normalize(message);
-  const time = parseFirstTime(message);
-  const duration = parseDurationMinutes(message) ?? 60;
-  const date = normalized.includes("ngay mai") || normalized.includes("tomorrow") ? addDays(getTodayDate(), 1) : getTodayDate();
-  const scheduledStart = time ? `${date}T${time}:00+07:00` : null;
-  const cleanedTitle = message
-    .replace(/nhac toi|them task|tao task|add task/gi, "")
-    .replace(/toi mai|ngay mai|tomorrow/gi, "")
-    .replace(/luc|at/gi, "")
-    .replace(/\d{1,2}(:\d{2})?\s*h?/gi, "")
-    .replace(/trong\s+\d+\s*(phut|gio|tieng|h)/gi, "")
-    .trim();
-
-  return {
-    title: cleanedTitle || "New task",
-    dueAt: scheduledStart,
-    scheduledStart,
-    estimatedMinutes: duration,
-    priority: normalized.includes("gap") || normalized.includes("urgent") ? 90 : 55
-  };
-}
-
-function parseTimeWindow(message) {
-  const matches = [...message.matchAll(/(\d{1,2})(?::(\d{2}))?\s*h?/gi)].map((match) => {
-    const hour = Number(match[1]);
-    const minute = Number(match[2] ?? 0);
-    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-  });
-
-  if (matches.length >= 2) {
-    return {
-      availableStart: matches[0],
-      availableEnd: matches[1]
-    };
-  }
-
-  return {
-    availableStart: "20:00",
-    availableEnd: "23:00"
-  };
-}
-
-function parseFirstTime(message) {
-  const match = message.match(/(\d{1,2})(?::(\d{2}))?\s*h?/i);
-  if (!match) return null;
-
-  const hour = Number(match[1]);
-  const minute = Number(match[2] ?? 0);
-  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-}
-
-function parseDurationMinutes(message) {
-  const hourMatch = message.match(/(\d+)\s*(gio|tieng|h)\b/i);
-  if (hourMatch) return Number(hourMatch[1]) * 60;
-
-  const minuteMatch = message.match(/(\d+)\s*(phut|m)\b/i);
-  if (minuteMatch) return Number(minuteMatch[1]);
-
-  return null;
-}
-
-function parseRelativeTomorrowAt(message) {
-  const time = parseFirstTime(message);
-  if (!time) return null;
-  return `${addDays(getTodayDate(), 1)}T${time}:00+07:00`;
 }
 
 async function enrichPlanSummary(message, blocks) {
