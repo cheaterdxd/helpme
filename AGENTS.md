@@ -27,6 +27,8 @@ AI and data safety:
 Roadmap and release rules:
 - `docs/project_plan.md` describes the roadmap.
 - `docs/project_todo.md` is the tracked checklist. Update and tick it only when a part is actually complete.
+- Before starting implementation or analysis for a roadmap item, state the active goal clearly: the project part number and the exact DOD item(s) from `docs/goal_dod_checklist.md`.
+- When finishing work, state which part and DOD item(s) were completed, which verification was run, and whether the todo/checklist status changed.
 - Each major change must be committed and pushed as its own feature/release instead of batching many parts into one commit.
 - Before marking a feature complete, run the relevant verification. For normal feature releases, use:
 
