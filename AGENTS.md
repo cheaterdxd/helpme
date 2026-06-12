@@ -20,7 +20,9 @@ AI and data safety:
 - Mutating AI commands must be proposal-first: parse intent, create a proposal, validate it, show it to the user, then write data only after confirmation.
 - Backend validation is required before writes and again at confirmation time for scheduling/conflict-sensitive actions.
 - Do not silently delete, reschedule, or rewrite user data from AI output.
-- LLM output must be treated as untrusted. Validate structured output and fall back to rule-based behavior when local AI fails.
+- LLM output must be treated as untrusted. Validate structured output before use.
+- For AI-required commands, local AI failure, invalid JSON, or low confidence must return a safe error/clarification state instead of silently guessing with a manual parser.
+- Non-AI screens and direct CRUD should keep working from SQLite when local AI is offline.
 
 Roadmap and release rules:
 - `docs/project_plan.md` describes the roadmap.

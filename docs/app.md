@@ -34,6 +34,7 @@ AI should:
 - Explain briefly.
 - Create proposals.
 - Wait for confirmation before mutation.
+- Use the local LLM for language-heavy understanding, synthesis, breakdown, and planning proposals.
 
 AI should not:
 
@@ -41,7 +42,10 @@ AI should not:
 - Write important data without confirmation.
 - Expose long reasoning or chain-of-thought.
 - Force the user to inspect raw dashboard data before helping.
+- Silently guess with a large manual parser when the local model cannot understand a command.
 
 ## Local-First Direction
 
-The app stores product data in SQLite. Local Ollama is the first AI provider. If Ollama is offline, HelpMe must still run using rule-based planning and deterministic fallback behavior.
+The app stores product data in SQLite. Local Ollama is the first AI provider.
+
+Direct non-AI screens should still load from SQLite when Ollama is offline. AI-required commands should fail safely with an error or clarification state when the model is offline, times out, returns invalid JSON, or returns low confidence. Backend code still owns validation, conflict checks, proposal confirmation, and database writes.

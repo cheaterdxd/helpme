@@ -1,6 +1,6 @@
 # HelpMe
 
-HelpMe is a local-first AI personal operating system for daily life admin. The current MVP connects a React UI, a Fastify web server, SQLite data, a rule-based planner, and an Ollama-backed command layer with rule-based fallback.
+HelpMe is a local-first AI personal operating system for daily life admin. The current MVP connects a React UI, a Fastify web server, SQLite data, a rule-based planner, and an Ollama-backed command layer.
 
 `docs/goal.md` is the source of truth for what "complete HelpMe" means.
 
@@ -31,7 +31,7 @@ The app currently exposes these screens:
 - Goals: goal -> project -> task.
 - Habits: routine signal.
 - Review: evening review and reschedule proposal.
-- Settings: local AI status and fallback mode.
+- Settings: local AI status and model behavior.
 
 The Orb opens the command layer. Commands that mutate data create an `ai_action_proposal` first and only write to SQLite after confirmation. Inbox, task-creation, reschedule, day-planning, and review-reschedule proposals show compact previews before confirmation. Scheduled task creation, reschedule, day-planning, and review-reschedule proposals validate calendar conflicts before writing.
 
@@ -82,14 +82,14 @@ The default local model is:
 qwen3:1.7b
 ```
 
-Enable local summaries:
+Enable local AI:
 
 ```powershell
 ollama serve
 ollama pull qwen3:1.7b
 ```
 
-If Ollama is offline or the model is missing, HelpMe still runs using the rule-based planner. AI runs and fallback errors are logged in `ai_runs`.
+If Ollama is offline or the model is missing, direct non-AI screens still load from SQLite. AI-required commands should fail safely with an error or clarification state instead of silently guessing. AI runs and errors are logged in `ai_runs`.
 
 ## Verification
 

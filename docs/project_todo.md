@@ -122,67 +122,67 @@ Note: Parts 1-9 were completed before the release rule was made strict, so some 
   - Verified: db:reset, check, build, smoke
 
 - [ ] Part 17 - AI Intent Parser v2
-  - Goal: let AI extract Vietnamese command intent and structured fields, while backend validates output and keeps manual parsing fallback-only.
+  - Goal: let AI extract Vietnamese command intent and structured fields; backend validates output, and LLM failure returns error/clarification instead of a manual parser fallback.
   - Release:
   - Commit:
   - Verified:
 
 - [ ] Part 18 - Task CRUD v1
-  - Goal: add direct task create/update/cancel/schedule workflows.
+  - Goal: add direct task CRUD plus LLM-backed Orb task create/edit proposals.
   - Release:
   - Commit:
   - Verified:
 
 - [ ] Part 19 - Calendar v2
-  - Goal: add practical day/week calendar views and event/time-block APIs.
+  - Goal: add practical day/week calendar views, event/time-block APIs, and LLM-backed event/time-block proposals.
   - Release:
   - Commit:
   - Verified:
 
 - [ ] Part 20 - Reminders v1
-  - Goal: activate reminders with due/upcoming/done/snooze behavior.
+  - Goal: activate reminders with LLM reminder capture and deterministic due/upcoming/done/snooze behavior.
   - Release:
   - Commit:
   - Verified:
 
 - [ ] Part 21 - Habits v2
-  - Goal: make habits editable with weekly completion and better streak handling.
+  - Goal: make habits editable with LLM setup suggestions, habit insights, weekly completion, and deterministic streak handling.
   - Release:
   - Commit:
   - Verified:
 
 - [ ] Part 22 - Deadlines v2
-  - Goal: add deadline CRUD, linking, improved scoring, and Orb commands.
+  - Goal: add deadline CRUD, linking, LLM deadline extraction/explanation, and deterministic date buckets.
   - Release:
   - Commit:
   - Verified:
 
 - [ ] Part 23 - Goals & Projects v2
-  - Goal: add editable goal/project/task relationships and real progress.
+  - Goal: add editable goal/project/task relationships plus LLM-assisted goal/project/task breakdown.
   - Release:
   - Commit:
   - Verified:
 
 - [ ] Part 24 - Daily Review & Morning Brief v2
-  - Goal: persist reviews and generate better morning brief context.
+  - Goal: persist reviews and use LLM synthesis for morning brief, evening reflection, and reschedule suggestions.
   - Release:
   - Commit:
   - Verified:
 
-- [ ] Part 25 - AI Command Expansion
-  - Goal: add more Orb intents with validated proposal-first behavior.
+- [ ] Part 25 - AI Orchestrator Harness & Command Expansion
+  - Goal: add LLM-aware orchestration lifecycle and expand Orb intents with validated proposal-first behavior.
   - Release:
   - Commit:
   - Verified:
 
 - [ ] Part 26 - Planner Engine v2
-  - Goal: improve scoring, overload resolution, and configurable planning.
+  - Goal: combine deterministic scheduling constraints with LLM-generated plan candidates, overload resolution, and explanations.
   - Release:
   - Commit:
   - Verified:
 
 - [ ] Part 27 - Settings & Preferences
-  - Goal: make user preferences editable and used by parser/planner.
+  - Goal: make user preferences and model behavior settings editable and used by the AI orchestrator/planner.
   - Release:
   - Commit:
   - Verified:

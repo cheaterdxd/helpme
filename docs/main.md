@@ -40,6 +40,17 @@ The user can type natural commands such as:
 
 Mutating actions must create an AI action proposal first. The backend validates the proposal and only writes to SQLite after user confirmation.
 
+Language-heavy work should be handled by the local LLM model instead of large manual parser code:
+
+- intent extraction
+- task/deadline/reminder capture
+- goal breakdown
+- plan synthesis
+- review and morning brief summaries
+- priority and overload explanations
+
+Backend code still owns deterministic checks: schema validation, entity ids, date math, calendar conflicts, recurrence, streaks, proposals, confirmation, and database writes.
+
 ## MVP Priority
 
 The next MVP should focus on:
@@ -47,7 +58,7 @@ The next MVP should focus on:
 1. Today timeline.
 2. Inbox organization.
 3. Orb command and proposal confirmation.
-4. Rule-based planner.
-5. Local Ollama integration as an enhancement, not a hard dependency.
+4. AI intent parser through local Ollama.
+5. Orchestrator harness for deeper planning tasks.
 
 Now stays important, but it is only one entry point in the personal OS.
