@@ -121,8 +121,8 @@ Note: Parts 1-9 were completed before the release rule was made strict, so some 
   - Commit: ab4b758
   - Verified: db:reset, check, build, smoke
 
-- [ ] Part 17 - Command Parser v2
-  - Goal: parse Vietnamese date, time, duration, and time windows reliably.
+- [ ] Part 17 - AI Intent Parser v2
+  - Goal: let AI extract Vietnamese command intent and structured fields, while backend validates output and keeps manual parsing fallback-only.
   - Release:
   - Commit:
   - Verified:

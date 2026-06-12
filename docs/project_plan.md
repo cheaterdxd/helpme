@@ -25,15 +25,16 @@ npm run smoke
 
 ## Roadmap
 
-### Part 17 - Command Parser v2
+### Part 17 - AI Intent Parser v2
 
-Improve natural-language parsing for Vietnamese date, time, duration, and time windows.
+Let AI handle natural-language understanding for Vietnamese commands, while the backend owns schema validation, safety, conflict checks, and deterministic fallback behavior.
 
 Key outcomes:
-- Parse `8h hoc AWS 1h` as start time 08:00 and duration 60 minutes.
-- Parse `ngay mai 8:30`, `toi mai 20h`, `trong 60 phut`, and `tu 20h den 23h`.
-- Move parser behavior into a dedicated module instead of keeping all parsing inside the command handler.
-- Add smoke or focused tests for parser edge cases.
+- Add an AI intent extraction step for commands such as `8h hoc AWS 1h`, `ngay mai 8:30`, `toi mai 20h`, `trong 60 phut`, and `tu 20h den 23h`.
+- Require AI output to match a strict schema: intent, entity ids or text, date, start time, end time, duration, confidence, and missing fields.
+- Backend validates all AI output before creating a proposal; invalid or low-confidence output asks for clarification or falls back to simple rule-based parsing.
+- Keep deterministic parsing small and fallback-only instead of building a large manual language parser.
+- Add smoke or focused tests for AI output validation, fallback behavior, and proposal-first safety.
 
 ### Part 18 - Task CRUD v1
 
@@ -167,4 +168,3 @@ Key outcomes:
 - Update `docs/project_todo.md` after each completed part.
 - Each completed todo item should include release date, commit hash, and verification result.
 - If a part reveals a prerequisite, add it to the todo file before implementing it.
-
