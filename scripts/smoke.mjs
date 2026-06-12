@@ -17,6 +17,7 @@ const server = spawn(process.execPath, ["server.mjs"], {
     HOST: "127.0.0.1",
     LOG_LEVEL: "error",
     HELPME_DB_PATH: dbPath,
+    HELPME_TODAY: "2026-06-08",
     OLLAMA_BASE_URL: process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434"
   },
   stdio: ["ignore", "pipe", "pipe"],
@@ -108,6 +109,7 @@ async function runSmokeChecks() {
   });
   assert(organize.intent === "organize_inbox", "Organize command should return organize_inbox intent");
   assert(organize.mode === "proposal", "Organize command should return proposal mode");
+  assertOrchestrated(organize, "organize_inbox");
   assert(Array.isArray(organize.proposal?.payload?.actions), "Organize proposal should include actions");
   assert(organize.proposal.payload.actions.length > 0, "Organize proposal should include at least one action");
   assert(organize.proposal.payload.actions.some((action) => action.group === "learning"), "Organize proposal should classify learning tasks");
@@ -130,6 +132,7 @@ async function runSmokeChecks() {
   });
   assert(plan.intent === "plan_day", "Plan command should return plan_day intent");
   assert(plan.mode === "proposal", "Plan command should return proposal mode");
+  assertOrchestrated(plan, "plan_day");
   assert(plan.proposal?.id, "Plan command should create proposal");
   assert(Array.isArray(plan.related_context?.blocks), "Plan command should include blocks");
   assert(Array.isArray(plan.related_context?.validation?.free_windows), "Plan command should include free-window validation");
@@ -147,6 +150,7 @@ async function runSmokeChecks() {
   });
   assert(review.intent === "daily_review", "Review command should return daily_review intent");
   assert(review.mode === "proposal", "Review command should return proposal mode");
+  assertOrchestrated(review, "daily_review");
   assert(Array.isArray(review.proposal?.payload?.reschedule), "Review proposal should include reschedule items");
   assert(review.proposal.payload.reschedule.length > 0, "Review proposal should reschedule unfinished tasks");
   assert(review.proposal.payload.validation?.conflict_count === 0, "Review proposal should be conflict-free");
@@ -163,6 +167,7 @@ async function runSmokeChecks() {
     message: "Nhac toi 20h hoc AWS 1h"
   });
   assert(createConflict.intent === "create_task", "Conflicting create command should return create_task intent");
+  assertOrchestrated(createConflict, "create_task");
   assert(createConflict.proposal?.payload?.validation?.conflict_count > 0, "Conflicting create proposal should report conflicts");
   const conflictConfirm = await postJsonExpectFailure(`/api/ai/proposals/${createConflict.proposal.id}/confirm`, {});
   assert(conflictConfirm.status === 400, "Confirm conflicting create_task should be rejected");
@@ -172,6 +177,7 @@ async function runSmokeChecks() {
     message: "Nhac toi ngay mai 8:30 hoc AWS 60 phut"
   });
   assert(create.intent === "create_task", "Create command should return create_task intent");
+  assertOrchestrated(create, "create_task");
   assert(create.proposal?.id, "Create command should create proposal");
   assert(create.proposal.payload.validation?.conflict_count === 0, "Create proposal should validate clear scheduled slot");
 
@@ -184,6 +190,7 @@ async function runSmokeChecks() {
     message: "move sang ngay mai 8:30h"
   });
   assert(rescheduleConflict.intent === "reschedule_task", "Conflicting reschedule should return reschedule_task intent");
+  assertOrchestrated(rescheduleConflict, "reschedule_task");
   assert(rescheduleConflict.proposal?.payload?.validation?.conflict_count > 0, "Conflicting reschedule should report conflicts");
   const rescheduleConflictConfirm = await postJsonExpectFailure(`/api/ai/proposals/${rescheduleConflict.proposal.id}/confirm`, {});
   assert(rescheduleConflictConfirm.status === 400, "Confirm conflicting reschedule_task should be rejected");
@@ -274,6 +281,24 @@ async function requestJson(path, { timeoutMs = 6000, ...init }) {
 function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
+  }
+}
+
+function assertOrchestrated(response, intentHint) {
+  const orchestration = response.orchestration;
+  assert(orchestration?.run_id?.startsWith("orchestrator_"), "AI command should include orchestrator run id");
+  assert(orchestration.status === "ok", "AI command orchestration should finish ok");
+  assert(orchestration.mode === "quick", "AI command orchestration should default to quick mode");
+  assert(orchestration.intent_hint === intentHint, `AI command should infer ${intentHint} intent hint`);
+  assert(orchestration.budget?.timeout_ms > 0, "AI command should include orchestration timeout budget");
+  assert(orchestration.budget?.max_steps > 0, "AI command should include orchestration step budget");
+  assert(Array.isArray(orchestration.lifecycle), "AI command should include orchestration lifecycle");
+
+  for (const step of ["understand", "gather_context", "plan", "validate", "propose", "log"]) {
+    assert(
+      orchestration.lifecycle.some((entry) => entry.step === step && entry.status === "ok"),
+      `AI command orchestration should include successful ${step} step`
+    );
   }
 }
 

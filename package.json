@@ -6,7 +6,7 @@
   "description": "HelpMe AI-first life admin web app shell.",
   "scripts": {
     "build": "vite build",
-    "check": "tsc --noEmit && node --check server.mjs && node --check server/ai/command.mjs && node --check server/ai/ollama-client.mjs && node --check server/ai/planner.mjs && node --check server/db/app-queries.mjs && node --check server/db/client.mjs && node --check server/db/migrate.mjs && node --check server/db/seed.mjs && node --check server/db/now-query.mjs && node --check scripts/smoke.mjs",
+    "check": "tsc --noEmit && node --check server.mjs && node --check server/ai/command.mjs && node --check server/ai/ollama-client.mjs && node --check server/ai/orchestrator.mjs && node --check server/ai/planner.mjs && node --check server/db/app-queries.mjs && node --check server/db/client.mjs && node --check server/db/migrate.mjs && node --check server/db/seed.mjs && node --check server/db/now-query.mjs && node --check scripts/smoke.mjs",
     "db:migrate": "node server/db/migrate.mjs",
     "db:seed": "node server/db/seed.mjs",
     "db:reset": "node server/db/seed.mjs --reset",

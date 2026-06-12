@@ -11,6 +11,7 @@ import {
   rankOpenTasks
 } from "../db/app-queries.mjs";
 import { runOllamaJson } from "./ollama-client.mjs";
+import { orchestrateAiCommand } from "./orchestrator.mjs";
 
 export const aiCommandRequestSchema = z.object({
   message: z.string().trim().min(1)
@@ -31,9 +32,13 @@ const plannerSummaryValidator = z.object({
 });
 
 export async function handleAiCommand(rawMessage) {
-  const message = rawMessage.trim();
-  const normalized = normalize(message);
+  return orchestrateAiCommand({
+    rawMessage,
+    execute: executeAiCommand
+  });
+}
 
+async function executeAiCommand({ message, normalized }) {
   if (looksLikeInboxCommand(normalized)) {
     const { actions, groups, proposal } = organizeInboxIntoProposal();
     return {
@@ -302,6 +307,10 @@ function normalize(value) {
 }
 
 function getTodayDate() {
+  if (process.env.HELPME_TODAY) {
+    return String(process.env.HELPME_TODAY).slice(0, 10);
+  }
+
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");

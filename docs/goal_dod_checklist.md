@@ -34,7 +34,7 @@ It is not yet complete as the final personal operating system in `docs/goal.md`.
 | Habit tracker | `[~] Partial` | Check-in/log, streak, completion, insight exist; create/edit/routine builder/deeper review missing. |
 | Goal manager | `[~] Partial` | Goal -> project -> task overview exists; CRUD, breakdown, true progress intelligence missing. |
 | Reminder/notification engine | `[ ] Missing` | Schema exists, but no usable reminder APIs/notifications. |
-| AI command layer | `[~] Partial` | Orb, proposals, confirm flow exist; AI intent parser and orchestrator not implemented. |
+| AI command layer | `[~] Partial` | Orb, proposals, confirm flow exist; orchestrator implemented, but AI intent parser not yet done. |
 | Local LLM integration | `[~] Partial` | Ollama client/status/JSON call/logging exist; limited usage, not primary command brain. |
 | AI safety | `[~] Partial` | Proposal-first and conflict validation exist for several flows; not all mutating domains exist yet. |
 | Settings/preferences | `[ ] Missing` | Settings screen mainly displays local AI status; no editable preferences. |
@@ -430,17 +430,18 @@ Assessment: partial.
 ### I5. AI Orchestrator Harness
 
 DOD:
-- [ ] Separate orchestrator lifecycle: understand, gather context, plan, validate, propose, log.
-- [ ] Quick/deep task modes.
-- [ ] Budgets: timeout, max steps, max context size.
-- [ ] No chain-of-thought exposure.
-- [ ] Safe error/clarification handling.
+- [x] Separate orchestrator lifecycle: understand, gather context, plan, validate, propose, log.
+- [x] Quick/deep task modes.
+- [x] Budgets: timeout, max steps, max context size.
+- [x] No chain-of-thought exposure.
+- [x] Safe error/clarification handling.
 
 Current evidence:
-- No `server/ai/orchestrator.mjs`.
-- `server/ai/command.mjs` is still a linear command handler.
+- `server/ai/orchestrator.mjs` implements the lifecycle and budgets.
+- `server/ai/command.mjs` is updated to run command execution through the orchestrator.
+- `scripts/smoke.mjs` verifies the orchestrator metadata and lifecycle steps in responses.
 
-Assessment: missing.
+Assessment: done.
 
 ### I6. Local LLM Client
 
