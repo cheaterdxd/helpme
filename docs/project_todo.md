@@ -129,11 +129,11 @@ Note: Parts 1-9 were completed before the release rule was made strict, so some 
   - Commit: f9d9cd9
   - Verified: db:reset, check, build, smoke
 
-- [ ] Part 18 - AI Intent Parser v2
+- [x] Part 18 - AI Intent Parser v2
   - Goal: let AI extract Vietnamese command intent and structured fields; backend validates output, and LLM failure returns error/clarification instead of a manual parser fallback.
-  - Release:
-  - Commit:
-  - Verified:
+  - Release: 2026-06-13
+  - Commit: 3724538
+  - Verified: db:reset, check, build, smoke
 
 - [ ] Part 19 - Proposal & Validation Runtime v2
   - Goal: harden shared proposal payloads, rejection/cancel status, validators, and safe API/UI error shapes.
