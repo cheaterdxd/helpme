@@ -24,7 +24,7 @@ It is not yet complete as the final personal operating system in `docs/goal.md`.
 | Core navigation/screens | `[~] Partial` | Screens exist, but several are read-only or shallow. |
 | Now recommended action | `[x] Done` | Now has goal -> project -> task selection and AI recommendation signal. |
 | Today / morning brief | `[~] Partial` | Today summary and suggested focus exist, but no true generated morning brief history/context. |
-| AI day planning | `[~] Partial` | Plan-day proposal exists with conflict validation, but planner is mostly rule-based and not LLM-first. |
+| AI day planning | `[x] Done` | LLM-driven plan candidates are generated, overload resolved, and scheduled under deterministic constraints. |
 | Evening review | `[~] Partial` | Review summary and reschedule proposal exist, but natural review capture and persisted review entries are missing. |
 | Task manager | `[~] Partial` | Complete/reopen/focus and AI create/reschedule exist; full direct CRUD/edit/cancel/link/breakdown missing. |
 | Smart inbox | `[~] Partial` | Organize proposal exists, but classification is rule-based and not LLM-backed. |
@@ -67,16 +67,16 @@ DOD:
 - [x] Use tasks, deadlines, calendar events, estimated duration, and priority.
 - [x] Validate free windows and blocked intervals.
 - [x] Confirm proposal before writing `daily_plans` and `time_blocks`.
-- [~] Use local LLM for short summary/reason.
-- [ ] Use LLM to generate actual plan candidates.
+- [x] Use local LLM for short summary/reason.
+- [x] Use LLM to generate actual plan candidates.
 - [ ] Support weekly planning.
 
 Current evidence:
-- `server/ai/command.mjs`: `looksLikePlanDayCommand`, `parseTimeWindow`, `enrichPlanSummary`.
+- `server/ai/planner.mjs`: `generatePlanWithLlm`.
 - `server/db/app-queries.mjs`: `createPlanDayProposal`, `buildFreeWindows`, `buildPlanValidation`.
-- `scripts/smoke.mjs`: plan-day proposal and confirm checks.
+- `scripts/smoke.mjs`: plan-day proposal, confirm, and LLM explanation / overload checks.
 
-Assessment: partial. The flow exists and is safe, but it is rule-based scheduling plus LLM summary, not an LLM planner.
+Assessment: done for daily planning; weekly planning is missing.
 
 ### A3. Evening Review
 
@@ -386,17 +386,16 @@ DOD:
 - [x] Account for deadline urgency, priority, effort fit, goal importance, overdue penalty.
 - [x] Recommend focus.
 - [x] Create day plan proposal.
-- [~] Use LLM for summary only.
-- [ ] LLM generates plan candidates.
+- [x] Use LLM for summary only.
+- [x] LLM generates plan candidates.
 - [ ] Plan my week.
-- [ ] Deep planning mode.
+- [x] Deep planning mode.
 
 Current evidence:
-- `server/ai/planner.mjs`.
+- `server/ai/planner.mjs`: `generatePlanWithLlm`.
 - `server/db/app-queries.mjs`: `createPlanDayProposal`.
-- `server/ai/command.mjs`: `enrichPlanSummary`.
 
-Assessment: partial.
+Assessment: done.
 
 ### I3. AI Prioritizer
 

@@ -147,11 +147,11 @@ Note: Parts 1-9 were completed before the release rule was made strict, so some 
   - Commit: 3d4b638
   - Verified: db:reset, check, build, smoke
 
-- [ ] Part 21 - Planner Engine Foundation v2
+- [x] Part 21 - Planner Engine Foundation v2
   - Goal: combine deterministic scheduling constraints with LLM-generated plan candidates, overload resolution, and explanations.
-  - Release:
-  - Commit:
-  - Verified:
+  - Release: 2026-06-13
+  - Commit: 7ad878e
+  - Verified: db:reset, check, build, smoke
 
 - [ ] Part 22 - UI Interaction Framework v2
   - Goal: standardize reusable loading, empty, error, clarification, conflict, and proposal states before adding more feature screens.
