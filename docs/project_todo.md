@@ -135,11 +135,11 @@ Note: Parts 1-9 were completed before the release rule was made strict, so some 
   - Commit: 3724538
   - Verified: db:reset, check, build, smoke
 
-- [ ] Part 19 - Proposal & Validation Runtime v2
+- [x] Part 19 - Proposal & Validation Runtime v2
   - Goal: harden shared proposal payloads, rejection/cancel status, validators, and safe API/UI error shapes.
-  - Release:
-  - Commit:
-  - Verified:
+  - Release: 2026-06-13
+  - Commit: e183287
+  - Verified: db:reset, check, build, smoke
 
 - [ ] Part 20 - Settings & Model Runtime Foundation
   - Goal: make user preferences and model behavior settings editable and used by the AI orchestrator/planner.
