@@ -122,6 +122,10 @@ function ProposalPreview({ proposal }: { proposal: AiActionProposal }) {
     return <ScheduledTaskProposalPreview proposal={proposal} mode="reschedule" />;
   }
 
+  if (proposal.intent === "breakdown_task") {
+    return <BreakdownTaskProposalPreview proposal={proposal} />;
+  }
+
   return null;
 }
 
@@ -308,4 +312,25 @@ function formatDuration(start: string, end: string) {
 
 function sumBlockMinutes(blocks: PlanProposalBlock[]) {
   return blocks.reduce((sum, block) => sum + Math.max(Math.round((Date.parse(block.end_at) - Date.parse(block.start_at)) / 60000), 0), 0);
+}
+
+function BreakdownTaskProposalPreview({ proposal }: { proposal: AiActionProposal }) {
+  const payload = proposal.payload as any;
+  const subtasks = Array.isArray(payload.subtasks) ? payload.subtasks : [];
+  return (
+    <div className="proposal-preview proposal-breakdown" aria-label="Breakdown task preview" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      <div className="proposal-preview-summary" style={{ display: "flex", justifyContent: "space-between" }}>
+        <b>{subtasks.length} subtasks</b>
+        {payload.new_project_title && <span style={{ color: "var(--muted)", fontSize: "13px" }}>Project: {payload.new_project_title as string}</span>}
+      </div>
+      <div className="compact-list" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+        {subtasks.map((st: any, idx: number) => (
+          <div className="proposal-preview-item" key={idx} style={{ padding: "8px", border: "1px solid var(--line)", borderRadius: "var(--radius)", background: "var(--panel-soft)" }}>
+            <strong style={{ display: "block", fontSize: "13px" }}>{st.title}</strong>
+            <small style={{ color: "var(--muted)" }}>Priority {st.priority ?? 55} · {st.estimated_minutes ?? 30}m</small>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }

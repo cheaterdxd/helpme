@@ -24,6 +24,7 @@ const allowedIntents = [
   "deadline_radar",
   "daily_review",
   "explain_priority",
+  "breakdown_task",
   "fallback"
 ];
 
@@ -239,6 +240,7 @@ function inferIntentHint(normalized) {
   if (normalized.includes("doi") || normalized.includes("reschedule") || normalized.includes("move") || normalized.includes("sang ngay mai")) return "reschedule_task";
   if (normalized.includes("deadline") || normalized.includes("han") || normalized.includes("qua han")) return "deadline_radar";
   if (normalized.includes("review") || normalized.includes("cuoi ngay") || normalized.includes("tong ket")) return "daily_review";
+  if (normalized.includes("chia nho") || normalized.includes("breakdown") || normalized.includes("chia nho task")) return "breakdown_task";
   return "unknown";
 }
 

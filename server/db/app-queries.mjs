@@ -527,6 +527,137 @@ export function reopenTask(taskId) {
   return { ok: true, task_id: taskId, status: "todo" };
 }
 
+export function createTask(data) {
+  const id = `task_${randomUUID()}`;
+  const now = new Date().toISOString();
+
+  let goalId = data.goal_id ?? data.goalId ?? null;
+  if (!goalId) {
+    const defaultGoal = sqlite.prepare("SELECT id FROM goals ORDER BY is_north_star DESC, priority DESC LIMIT 1").get();
+    goalId = defaultGoal?.id ?? "goal_helpme_ai_life_admin";
+  }
+
+  const scheduledStart = data.scheduled_start ?? data.scheduledStart ?? null;
+  const estimatedMinutes = Number(data.estimated_minutes ?? data.estimatedMinutes ?? 30);
+  const scheduledEnd = data.scheduled_end ?? data.scheduledEnd ?? (scheduledStart ? addMinutesIso(scheduledStart, estimatedMinutes) : null);
+
+  const validation = buildCreateTaskValidation({
+    title: data.title,
+    scheduledStart,
+    scheduledEnd,
+    estimatedMinutes
+  });
+
+  if (validation.conflict_count > 0) {
+    return { ok: false, error: `Calendar conflicts detected.`, validation };
+  }
+
+  sqlite
+    .prepare(
+      `INSERT INTO tasks (
+        id, goal_id, project_id, parent_task_id, title, description, status, priority,
+        estimated_minutes, due_at, scheduled_start, scheduled_end, fits_available_time,
+        visible_in_now, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?)`
+    )
+    .run(
+      id,
+      goalId,
+      data.project_id ?? data.projectId ?? null,
+      data.parent_task_id ?? data.parentTaskId ?? null,
+      data.title || "Untitled Task",
+      data.description ?? null,
+      data.status ?? "todo",
+      Number(data.priority ?? 50),
+      estimatedMinutes,
+      data.due_at ?? data.dueAt ?? null,
+      scheduledStart,
+      scheduledEnd,
+      now,
+      now
+    );
+
+  return { ok: true, task: selectTasks().find((t) => t.id === id), validation };
+}
+
+export function updateTask(taskId, data) {
+  const task = selectTasks().find((item) => item.id === taskId);
+  if (!task) {
+    return { ok: false, error: "Task not found." };
+  }
+
+  const now = new Date().toISOString();
+
+  const title = data.title !== undefined ? data.title : task.title;
+  const description = data.description !== undefined ? data.description : task.description;
+  const status = data.status !== undefined ? data.status : task.status;
+  const priority = data.priority !== undefined ? Number(data.priority) : task.priority;
+  const estimatedMinutes = data.estimated_minutes !== undefined ? Number(data.estimated_minutes) : (data.estimatedMinutes !== undefined ? Number(data.estimatedMinutes) : task.estimated_minutes);
+  const goalId = data.goal_id !== undefined ? data.goal_id : (data.goalId !== undefined ? data.goalId : task.goal_id);
+  const projectId = data.project_id !== undefined ? data.project_id : (data.projectId !== undefined ? data.projectId : task.project_id);
+  const dueAt = data.due_at !== undefined ? data.due_at : (data.dueAt !== undefined ? data.dueAt : task.due_at);
+  const scheduledStart = data.scheduled_start !== undefined ? data.scheduled_start : (data.scheduledStart !== undefined ? data.scheduledStart : task.scheduled_start);
+  const scheduledEnd = data.scheduled_end !== undefined ? data.scheduled_end : (data.scheduledEnd !== undefined ? data.scheduledEnd : task.scheduled_end);
+
+  let finalScheduledEnd = scheduledEnd;
+  if (scheduledStart && !scheduledEnd && (scheduledStart !== task.scheduled_start || estimatedMinutes !== task.estimated_minutes)) {
+    finalScheduledEnd = addMinutesIso(scheduledStart, estimatedMinutes || 30);
+  }
+
+  if (scheduledStart !== task.scheduled_start || finalScheduledEnd !== task.scheduled_end || estimatedMinutes !== task.estimated_minutes) {
+    const validation = buildCreateTaskValidation({
+      title,
+      taskId,
+      scheduledStart,
+      scheduledEnd: finalScheduledEnd,
+      estimatedMinutes,
+      ignoreTaskId: taskId
+    });
+
+    if (validation.conflict_count > 0) {
+      return { ok: false, error: `Calendar conflicts detected.`, validation };
+    }
+  }
+
+  sqlite
+    .prepare(
+      `UPDATE tasks
+       SET title = ?, description = ?, status = ?, priority = ?, estimated_minutes = ?,
+           goal_id = ?, project_id = ?, due_at = ?, scheduled_start = ?, scheduled_end = ?,
+           updated_at = ?
+       WHERE id = ?`
+    )
+    .run(
+      title,
+      description,
+      status,
+      priority,
+      estimatedMinutes,
+      goalId,
+      projectId,
+      dueAt,
+      scheduledStart,
+      finalScheduledEnd,
+      now,
+      taskId
+    );
+
+  return { ok: true, task: selectTasks().find((item) => item.id === taskId) };
+}
+
+export function deleteTask(taskId) {
+  const task = selectTasks().find((item) => item.id === taskId);
+  if (!task) {
+    return { ok: false, error: "Task not found." };
+  }
+
+  sqlite
+    .prepare("UPDATE tasks SET status = 'cancelled', updated_at = ? WHERE id = ?")
+    .run(new Date().toISOString(), taskId);
+
+  return { ok: true, task_id: taskId, status: "cancelled" };
+}
+
 export function startFocusSession(taskId, options = {}) {
   const task = selectTasks().find((item) => item.id === taskId);
   if (!task) {
@@ -752,6 +883,60 @@ function applyProposal(intent, payload) {
     return { organized_tasks: payload.task_ids?.length ?? 0 };
   }
 
+  if (intent === "breakdown_task") {
+    const now = new Date().toISOString();
+    const parentTaskId = payload.parent_task_id;
+    const parentTask = sqlite.prepare("SELECT * FROM tasks WHERE id = ?").get(parentTaskId);
+    if (!parentTask) {
+      throw new Error("Parent task not found.");
+    }
+
+    let projectId = parentTask.project_id;
+    if (!projectId) {
+      projectId = `project_${randomUUID()}`;
+      sqlite
+        .prepare(
+          `INSERT INTO projects (id, goal_id, title, description, status, priority, created_at, updated_at)
+           VALUES (?, ?, ?, 'Auto-created during task breakdown', 'active', 50, ?, ?)`
+        )
+        .run(projectId, parentTask.goal_id, payload.new_project_title || parentTask.title, now, now);
+
+      sqlite
+        .prepare("UPDATE tasks SET project_id = ?, updated_at = ? WHERE id = ?")
+        .run(projectId, now, parentTaskId);
+    }
+
+    const subtasks = Array.isArray(payload.subtasks) ? payload.subtasks : [];
+    for (const subtask of subtasks) {
+      const subtaskId = `task_${randomUUID()}`;
+      sqlite
+        .prepare(
+          `INSERT INTO tasks (
+            id, goal_id, project_id, parent_task_id, title, description, status, priority,
+            estimated_minutes, due_at, scheduled_start, scheduled_end, fits_available_time,
+            visible_in_now, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, NULL, 'todo', ?, ?, NULL, NULL, NULL, 1, 0, ?, ?)`
+        )
+        .run(
+          subtaskId,
+          parentTask.goal_id,
+          projectId,
+          parentTaskId,
+          subtask.title,
+          subtask.priority ?? 55,
+          subtask.estimated_minutes ?? 30,
+          now,
+          now
+        );
+    }
+
+    return {
+      parent_task_id: parentTaskId,
+      project_id: projectId,
+      created_subtasks_count: subtasks.length
+    };
+  }
+
   if (intent === "daily_review") {
     const normalizedItems = (payload.reschedule ?? []).map(normalizeReviewRescheduleItem).filter(Boolean);
     const conflicts = findRescheduleConflicts(normalizedItems);
@@ -771,7 +956,7 @@ function applyProposal(intent, payload) {
   return { ignored: true };
 }
 
-function selectTasks() {
+export function selectTasks() {
   return sqlite
     .prepare(
       `SELECT t.*, g.title AS goal_title, g.priority AS goal_priority, g.is_north_star, p.title AS project_title

@@ -14,7 +14,8 @@ import {
   RotateCcw,
   Sparkles,
   Target,
-  Timer
+  Timer,
+  Plus
 } from "lucide-react";
 import { type ReactNode, useState, type FormEvent } from "react";
 import { routeMeta, type Route } from "../navigation";
@@ -34,6 +35,7 @@ type RoutePanelProps = {
   onStartFocus: (taskId: string) => Promise<void>;
   onCompleteFocus: (sessionId: string, completeTask?: boolean) => Promise<void>;
   onUpdateSettings: (settings: Partial<AppSettings>) => Promise<void>;
+  onEditTask: (task: ApiTask | null) => void;
 };
 
 export function RoutePanel({
@@ -46,7 +48,8 @@ export function RoutePanel({
   onLogHabit,
   onStartFocus,
   onCompleteFocus,
-  onUpdateSettings
+  onUpdateSettings,
+  onEditTask
 }: RoutePanelProps) {
   if (error) {
     return (
@@ -76,15 +79,16 @@ export function RoutePanel({
         onCompleteTask={onCompleteTask}
         onStartFocus={onStartFocus}
         onCompleteFocus={onCompleteFocus}
+        onEditTask={onEditTask}
       />
     );
   }
-  if (route === "inbox") return <InboxView data={data} onCommand={onCommand} />;
+  if (route === "inbox") return <InboxView data={data} onCommand={onCommand} onEditTask={onEditTask} />;
   if (route === "calendar") return <CalendarView data={data} onCommand={onCommand} />;
   if (route === "deadlines") return <DeadlinesView radar={data.deadlines} />;
   if (route === "goals") return <GoalsView data={data} />;
   if (route === "habits") return <HabitsView data={data} onLogHabit={onLogHabit} />;
-  if (route === "review") return <ReviewView data={data} onCommand={onCommand} onCompleteTask={onCompleteTask} onReopenTask={onReopenTask} />;
+  if (route === "review") return <ReviewView data={data} onCommand={onCommand} onCompleteTask={onCompleteTask} onReopenTask={onReopenTask} onEditTask={onEditTask} />;
   return <SettingsView data={data} onUpdateSettings={onUpdateSettings} />;
 }
 
@@ -93,13 +97,15 @@ function TodayView({
   onCommand,
   onCompleteTask,
   onStartFocus,
-  onCompleteFocus
+  onCompleteFocus,
+  onEditTask
 }: {
   data: AppData;
   onCommand: (message: string) => Promise<void>;
   onCompleteTask: (taskId: string) => Promise<void>;
   onStartFocus: (taskId: string) => Promise<void>;
   onCompleteFocus: (sessionId: string, completeTask?: boolean) => Promise<void>;
+  onEditTask: (task: ApiTask | null) => void;
 }) {
   return (
     <section className="os-view" aria-label="Today">
@@ -193,14 +199,33 @@ function TodayView({
         ))}
       </div>
       <section className="os-section">
-        <h2>Today tasks</h2>
-        <TaskList tasks={data.tasks.today} empty="No task scheduled or due today." onCompleteTask={onCompleteTask} />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+          <h2 style={{ margin: 0 }}>Today tasks</h2>
+          <button
+            type="button"
+            className="row-action"
+            onClick={() => onEditTask(null)}
+            style={{ display: "flex", alignItems: "center", gap: "4px", padding: "6px 12px", borderRadius: "var(--radius)", cursor: "pointer", background: "var(--panel)" }}
+          >
+            <Plus size={14} />
+            <span>Add Task</span>
+          </button>
+        </div>
+        <TaskList tasks={data.tasks.today} empty="No task scheduled or due today." onCompleteTask={onCompleteTask} onEditTask={onEditTask} />
       </section>
     </section>
   );
 }
 
-function InboxView({ data, onCommand }: { data: AppData; onCommand: (message: string) => Promise<void> }) {
+function InboxView({
+  data,
+  onCommand,
+  onEditTask
+}: {
+  data: AppData;
+  onCommand: (message: string) => Promise<void>;
+  onEditTask: (task: ApiTask | null) => void;
+}) {
   const lanes = buildInboxLanes(data.tasks.inbox);
 
   return (
@@ -213,6 +238,18 @@ function InboxView({ data, onCommand }: { data: AppData; onCommand: (message: st
         actionLabel="Organize"
         onAction={() => onCommand("Organize inbox")}
       />
+
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
+        <button
+          type="button"
+          className="row-action"
+          onClick={() => onEditTask(null)}
+          style={{ display: "flex", alignItems: "center", gap: "4px", padding: "8px 16px", borderRadius: "var(--radius)", cursor: "pointer", background: "var(--panel)" }}
+        >
+          <Plus size={14} />
+          <span>Add Task</span>
+        </button>
+      </div>
 
       {data.tasks.inbox.length ? (
         <div className="inbox-lanes">
@@ -228,7 +265,7 @@ function InboxView({ data, onCommand }: { data: AppData; onCommand: (message: st
               <div>
                 {lane.tasks.length ? (
                   lane.tasks.map((task) => (
-                    <article className="inbox-card" key={task.id}>
+                    <article className="inbox-card" key={task.id} style={{ cursor: "pointer" }} onClick={() => onEditTask(task)}>
                       <strong>{task.title}</strong>
                       <span>{task.project_title ?? task.goal_title ?? "Unlinked"}</span>
                       <footer>
@@ -402,12 +439,14 @@ function ReviewView({
   data,
   onCommand,
   onCompleteTask,
-  onReopenTask
+  onReopenTask,
+  onEditTask
 }: {
   data: AppData;
   onCommand: (message: string) => Promise<void>;
   onCompleteTask: (taskId: string) => Promise<void>;
   onReopenTask: (taskId: string) => Promise<void>;
+  onEditTask: (task: ApiTask | null) => void;
 }) {
   return (
     <section className="os-view" aria-label="Review">
@@ -423,7 +462,7 @@ function ReviewView({
       <div className="split-grid">
         <section>
           <h2>Unfinished</h2>
-          <TaskList tasks={data.review.unfinished} empty="No unfinished task in today's plan." onCompleteTask={onCompleteTask} />
+          <TaskList tasks={data.review.unfinished} empty="No unfinished task in today's plan." onCompleteTask={onCompleteTask} onEditTask={onEditTask} />
         </section>
         <section>
           <h2>Suggested reschedule</h2>
@@ -445,7 +484,7 @@ function ReviewView({
         </section>
         <section>
           <h2>Completed</h2>
-          <TaskList tasks={data.review.completed} empty="No completed task in today's plan." onReopenTask={onReopenTask} />
+          <TaskList tasks={data.review.completed} empty="No completed task in today's plan." onReopenTask={onReopenTask} onEditTask={onEditTask} />
         </section>
       </div>
     </section>
@@ -716,12 +755,14 @@ function TaskList({
   tasks,
   empty,
   onCompleteTask,
-  onReopenTask
+  onReopenTask,
+  onEditTask
 }: {
   tasks: ApiTask[];
   empty: string;
   onCompleteTask?: (taskId: string) => Promise<void>;
   onReopenTask?: (taskId: string) => Promise<void>;
+  onEditTask?: (task: ApiTask) => void;
 }) {
   if (!tasks.length) {
     return <p className="empty-state">{empty}</p>;
@@ -730,7 +771,12 @@ function TaskList({
   return (
     <div className="task-list">
       {tasks.map((task) => (
-        <article className="task-row" key={task.id}>
+        <article
+          className="task-row"
+          key={task.id}
+          style={{ cursor: onEditTask ? "pointer" : "default" }}
+          onClick={() => onEditTask?.(task)}
+        >
           <ListChecks aria-hidden="true" size={18} />
           <div>
             <strong>{task.title}</strong>
@@ -745,13 +791,27 @@ function TaskList({
             </small>
           )}
           {onCompleteTask && task.status !== "done" && (
-            <button className="row-action" type="button" onClick={() => void onCompleteTask(task.id)}>
+            <button
+              className="row-action"
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                void onCompleteTask(task.id);
+              }}
+            >
               <CheckCircle2 aria-hidden="true" size={14} />
               <span>Done</span>
             </button>
           )}
           {onReopenTask && task.status === "done" && (
-            <button className="row-action" type="button" onClick={() => void onReopenTask(task.id)}>
+            <button
+              className="row-action"
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                void onReopenTask(task.id);
+              }}
+            >
               <RotateCcw aria-hidden="true" size={14} />
               <span>Reopen</span>
             </button>

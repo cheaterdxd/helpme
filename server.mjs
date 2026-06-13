@@ -25,7 +25,10 @@ import {
   reopenTask,
   startFocusSession,
   getSettings,
-  updateSettings
+  updateSettings,
+  createTask,
+  updateTask,
+  deleteTask
 } from "./server/db/app-queries.mjs";
 import { buildNowBriefing } from "./server/db/now-query.mjs";
 import { seedDatabase } from "./server/db/seed.mjs";
@@ -59,6 +62,34 @@ app.get("/api/now", async () => buildNowBriefing());
 app.get("/api/today", async () => getTodayView());
 
 app.get("/api/tasks", async () => getTaskCollections());
+
+app.post("/api/tasks", async (request, reply) => {
+  const body = typeof request.body === "object" && request.body !== null ? request.body : {};
+  const result = createTask(body);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
+
+app.patch("/api/tasks/:id", async (request, reply) => {
+  const taskId = typeof request.params?.id === "string" ? request.params.id : "";
+  const body = typeof request.body === "object" && request.body !== null ? request.body : {};
+  const result = updateTask(taskId, body);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
+
+app.delete("/api/tasks/:id", async (request, reply) => {
+  const taskId = typeof request.params?.id === "string" ? request.params.id : "";
+  const result = deleteTask(taskId);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
 
 app.post("/api/tasks/:id/complete", async (request, reply) => {
   const taskId = typeof request.params?.id === "string" ? request.params.id : "";

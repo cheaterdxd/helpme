@@ -10,7 +10,10 @@ import {
   logHabitToday,
   reopenTask,
   startFocusSession,
-  updateSettingsApi
+  updateSettingsApi,
+  createTaskApi,
+  updateTaskApi,
+  deleteTaskApi
 } from "./api";
 import { AskOrb } from "./components/AskOrb";
 import { AskOverlay } from "./components/AskOverlay";
@@ -18,8 +21,9 @@ import { ContextDrawer } from "./components/ContextDrawer";
 import { NowScreen } from "./components/NowScreen";
 import { RoutePanel } from "./components/RoutePanel";
 import { TopBar } from "./components/TopBar";
+import { TaskEditorModal } from "./components/TaskEditorModal";
 import type { Route } from "./navigation";
-import type { AppData, AskResponse, NowBriefing, AppSettings } from "./types";
+import type { AppData, AskResponse, NowBriefing, AppSettings, ApiTask } from "./types";
 
 export function App() {
   const [briefing, setBriefing] = useState<NowBriefing | null>(null);
@@ -32,6 +36,8 @@ export function App() {
   const [contextOpen, setContextOpen] = useState(false);
   const [askAnswer, setAskAnswer] = useState<AskResponse | null>(null);
   const [askPending, setAskPending] = useState(false);
+  const [isTaskEditorOpen, setIsTaskEditorOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<ApiTask | null>(null);
 
   useEffect(() => {
     void loadAllData();
@@ -158,6 +164,34 @@ export function App() {
     await loadAllData();
   }
 
+  function handleEditTask(task: ApiTask | null) {
+    setEditingTask(task);
+    setIsTaskEditorOpen(true);
+  }
+
+  async function handleSaveTask(taskData: any) {
+    if (editingTask) {
+      const response = await updateTaskApi(editingTask.id, taskData);
+      if (!response.ok) {
+        throw response;
+      }
+    } else {
+      const response = await createTaskApi(taskData);
+      if (!response.ok) {
+        throw response;
+      }
+    }
+    await loadAllData();
+  }
+
+  async function handleDeleteTask(taskId: string) {
+    const response = await deleteTaskApi(taskId);
+    if (!response.ok) {
+      throw response;
+    }
+    await loadAllData();
+  }
+
   return (
     <div className="app-shell">
       <TopBar
@@ -188,6 +222,7 @@ export function App() {
             onStartFocus={handleStartFocus}
             onCompleteFocus={handleCompleteFocus}
             onUpdateSettings={handleUpdateSettings}
+            onEditTask={handleEditTask}
           />
         )}
       </main>
@@ -207,6 +242,17 @@ export function App() {
           onAsk={handleAsk}
           onConfirmProposal={handleConfirmProposal}
           onRejectProposal={handleRejectProposal}
+        />
+      )}
+
+      {appData && (
+        <TaskEditorModal
+          task={editingTask}
+          goals={appData.goals}
+          isOpen={isTaskEditorOpen}
+          onClose={() => setIsTaskEditorOpen(false)}
+          onSave={handleSaveTask}
+          onDelete={handleDeleteTask}
         />
       )}
     </div>

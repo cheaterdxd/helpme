@@ -237,6 +237,17 @@ function mockOllamaResponse(prompt) {
     };
   }
 
+  // Task breakdown mock
+  if (norm.includes("break down the task")) {
+    return {
+      subtasks: [
+        { title: "Review AWS study guide", estimated_minutes: 30, priority: 70 },
+        { title: "Read UC-45 revision notes", estimated_minutes: 45, priority: 80 },
+        { title: "Complete AWS security lab practice", estimated_minutes: 60, priority: 90 }
+      ]
+    };
+  }
+
   // 1.5. Plan summary mock
   if (norm.includes("summarize this daily plan")) {
     return {
@@ -248,6 +259,13 @@ function mockOllamaResponse(prompt) {
   // 2. Intent parsing mock
   if (norm.includes('user command: "organize inbox"')) {
     return { intent: "organize_inbox", confidence: 0.95 };
+  }
+  if (norm.includes('user command: "chia nhỏ task học aws"') || norm.includes('user command: "chia nho task hoc aws"')) {
+    return {
+      intent: "breakdown_task",
+      confidence: 0.96,
+      title: "học AWS"
+    };
   }
   if (norm.includes('user command: "hom nay toi ranh tu 20h den 23h, sap lich giup toi"')) {
     return {

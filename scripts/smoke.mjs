@@ -250,6 +250,68 @@ async function runSmokeChecks() {
 
   const todayAfterSettings = await getJson("/api/today");
   assert(todayAfterSettings.greeting === "Good evening, Tuan Dev.", "Greeting should reflect updated display name");
+
+  // Direct CRUD API checks
+  console.log("Direct task CRUD checks...");
+  const createdTaskRes = await postJson("/api/tasks", {
+    title: "Direct created task clear slot",
+    estimated_minutes: 30,
+    scheduled_start: "2026-06-09T14:00:00+07:00",
+    scheduled_end: "2026-06-09T14:30:00+07:00",
+    priority: 80,
+    status: "todo"
+  });
+  assert(createdTaskRes.ok === true, "Direct createTask should return ok");
+  assert(createdTaskRes.task?.id, "Direct created task should have ID");
+  const createdTaskId = createdTaskRes.task.id;
+
+  const createdTaskConflictRes = await postJsonExpectFailure("/api/tasks", {
+    title: "Direct created task conflicting slot",
+    estimated_minutes: 30,
+    scheduled_start: "2026-06-09T14:00:00+07:00",
+    scheduled_end: "2026-06-09T14:30:00+07:00",
+    priority: 80,
+    status: "todo"
+  });
+  assert(createdTaskConflictRes.status === 400, "Direct createTask conflict should return 400");
+  assert(/conflict/i.test(createdTaskConflictRes.body?.error || ""), "Direct createTask conflict should return conflict error");
+
+  const updatedTaskRes = await requestJson(`/api/tasks/${createdTaskId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title: "Direct updated task", estimated_minutes: 45 })
+  });
+  assert(updatedTaskRes.ok === true, "Direct updateTask should return ok");
+  assert(updatedTaskRes.task?.title === "Direct updated task", "Direct updated task title should be updated");
+
+  const updatedTaskConflictRes = await patchJsonExpectFailure(`/api/tasks/${createdTaskId}`, {
+    scheduled_start: "2026-06-08T20:00:00+07:00",
+    scheduled_end: "2026-06-08T21:00:00+07:00"
+  });
+  assert(updatedTaskConflictRes.status === 400, "Direct updateTask conflict should return 400");
+  assert(/conflict/i.test(updatedTaskConflictRes.body?.error || ""), "Direct updateTask conflict should return conflict error");
+
+  const deletedTaskRes = await requestJson(`/api/tasks/${createdTaskId}`, {
+    method: "DELETE"
+  });
+  assert(deletedTaskRes.ok === true, "Direct deleteTask should return ok");
+  assert(deletedTaskRes.status === "cancelled", "Deleted task status should be cancelled");
+
+  // breakdown_task command checks
+  console.log("AI task breakdown checks...");
+  const breakdown = await postJson("/api/ai/command", {
+    message: "chia nhỏ task học AWS"
+  });
+  assert(breakdown.intent === "breakdown_task", "Breakdown command should return breakdown_task intent");
+  assert(breakdown.mode === "proposal", "Breakdown command should return proposal mode");
+  assertOrchestrated(breakdown, "breakdown_task");
+  assert(breakdown.proposal?.id, "Breakdown command should create proposal");
+  assert(Array.isArray(breakdown.proposal.payload.subtasks), "Breakdown proposal should include subtasks");
+  assert(breakdown.proposal.payload.subtasks.length > 0, "Breakdown proposal should include at least one subtask");
+
+  const breakdownConfirmed = await postJson(`/api/ai/proposals/${breakdown.proposal.id}/confirm`, {});
+  assert(breakdownConfirmed.ok === true, "Confirm breakdown proposal should return ok");
+  assert(breakdownConfirmed.result?.created_subtasks_count === breakdown.proposal.payload.subtasks.length, "Confirm breakdown should create subtasks");
 }
 
 async function waitForHealth() {
@@ -295,6 +357,26 @@ async function postJsonExpectFailure(path, body) {
 
   if (response.ok) {
     throw new Error(`POST ${path} should have failed but returned ${response.status}: ${text}`);
+  }
+
+  return {
+    status: response.status,
+    body: text ? JSON.parse(text) : null
+  };
+}
+
+async function patchJsonExpectFailure(path, body) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+  const text = await response.text();
+
+  if (response.ok) {
+    throw new Error(`PATCH ${path} should have failed but returned ${response.status}: ${text}`);
   }
 
   return {

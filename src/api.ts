@@ -96,6 +96,36 @@ export async function updateSettingsApi(settings: Partial<AppSettings>): Promise
   });
 }
 
+export async function createTaskApi(task: any): Promise<any> {
+  return requestJson("/api/tasks", "HelpMe could not create task.", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(task)
+  });
+}
+
+export async function updateTaskApi(taskId: string, task: any): Promise<any> {
+  return requestJson(`/api/tasks/${taskId}`, "HelpMe could not update task.", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(task)
+  });
+}
+
+export async function deleteTaskApi(taskId: string): Promise<any> {
+  return requestJson(`/api/tasks/${taskId}`, "HelpMe could not delete task.", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({})
+  });
+}
+
 function postEmpty<T = unknown>(url: string, errorMessage: string) {
   return requestJson<T>(url, errorMessage, {
     method: "POST",

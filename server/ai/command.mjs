@@ -8,7 +8,9 @@ import {
   getReviewSummary,
   getTodayView,
   organizeInboxIntoProposal,
-  rankOpenTasks
+  rankOpenTasks,
+  createActionProposal,
+  selectTasks
 } from "../db/app-queries.mjs";
 import { runOllamaJson } from "./ollama-client.mjs";
 import { orchestrateAiCommand } from "./orchestrator.mjs";
@@ -32,6 +34,7 @@ const intentParserJsonSchema = {
         "deadline_radar",
         "daily_review",
         "explain_priority",
+        "breakdown_task",
         "fallback"
       ]
     },
@@ -55,6 +58,7 @@ const intentParserValidator = z.object({
     "deadline_radar",
     "daily_review",
     "explain_priority",
+    "breakdown_task",
     "fallback"
   ]),
   confidence: z.number().min(0).max(1),
@@ -95,6 +99,7 @@ async function parseIntentWithLlm(message) {
     "- deadline_radar: user asks about deadlines, due dates, or overdue work (e.g. \"hạn chót\", \"deadline\", \"quá hạn\").",
     "- daily_review: user wants to review their day, reflect, or summarize completed work (e.g. \"review cuối ngày\", \"tổng kết\").",
     "- explain_priority: user asks why a task is prioritized or what to do next.",
+    "- breakdown_task: user wants to split, divide, or break down a task (e.g. \"chia nhỏ task học AWS\", \"breakdown task AWS\"). Extract title (the name of the task to be broken down).",
     "- fallback: command is empty, unclear, or does not match any other intent.",
     "",
     `User command: "${message}"`
@@ -188,6 +193,118 @@ async function executeAiCommand({ message, normalized }) {
         : "I understood the new task. I will only add it to SQLite after confirmation.",
       proposal,
       related_context: params
+    };
+  }
+
+  if (parsed.intent === "breakdown_task") {
+    const searchTitle = (parsed.title || "").toLowerCase().trim();
+    const allTasks = selectTasks();
+    let parentTask = null;
+
+    if (searchTitle) {
+      parentTask = allTasks.find((t) => t.title.toLowerCase().includes(searchTitle) && t.status !== "done" && t.status !== "cancelled") ||
+                   allTasks.find((t) => t.title.toLowerCase().includes(searchTitle));
+    }
+
+    if (!parentTask) {
+      const focus = getTodayView().suggested_focus;
+      if (focus) {
+        parentTask = allTasks.find((t) => t.id === focus.task_id);
+      }
+    }
+
+    if (!parentTask) {
+      return readOnlyAnswer("breakdown_task", "Tôi không tìm thấy công việc nào phù hợp để chia nhỏ. Bạn hãy ghi rõ tên công việc (ví dụ: 'chia nhỏ task học AWS').", {});
+    }
+
+    let generatedSubtasks = [];
+    try {
+      const breakdownPrompt = [
+        "You are a productivity expert for HelpMe.",
+        `Break down the task "${parentTask.title}" into 3 to 6 concrete, actionable subtasks.`,
+        "For each subtask, suggest an estimated duration in minutes (between 15 and 60) and a priority (from 10 to 100).",
+        "Return JSON only conforming to the schema.",
+        "",
+        "Output Format:",
+        "{",
+        '  "subtasks": [',
+        '    { "title": "...", "estimated_minutes": 30, "priority": 55 }',
+        "  ]",
+        "}"
+      ].join("\n");
+
+      const schema = {
+        type: "object",
+        properties: {
+          subtasks: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                title: { type: "string" },
+                estimated_minutes: { type: "number" },
+                priority: { type: "number" }
+              },
+              required: ["title", "estimated_minutes", "priority"]
+            }
+          }
+        },
+        required: ["subtasks"]
+      };
+
+      const validator = z.object({
+        subtasks: z.array(
+          z.object({
+            title: z.string().trim().min(1),
+            estimated_minutes: z.number().min(5).max(120),
+            priority: z.number().min(1).max(100)
+          })
+        )
+      });
+
+      const ollamaResult = await runOllamaJson({
+        prompt: breakdownPrompt,
+        schema,
+        validator,
+        timeoutMs: 8000
+      });
+
+      if (ollamaResult.ok) {
+        generatedSubtasks = ollamaResult.value.subtasks;
+      }
+    } catch (e) {
+      // Ignore and fallback
+    }
+
+    if (!generatedSubtasks.length) {
+      generatedSubtasks = [
+        { title: "Phân tích yêu cầu và chuẩn bị tài liệu", estimated_minutes: 30, priority: 60 },
+        { title: "Thực hiện các bước cốt lõi của công việc", estimated_minutes: 60, priority: 70 },
+        { title: "Kiểm tra lại kết quả và tối ưu hóa", estimated_minutes: 30, priority: 50 }
+      ];
+    }
+
+    const proposal = createActionProposal({
+      intent: "breakdown_task",
+      title: `Chia nhỏ task: ${parentTask.title}`,
+      summary: `Tự động chia nhỏ công việc "${parentTask.title}" thành ${generatedSubtasks.length} subtask liên kết.`,
+      payload: {
+        parent_task_id: parentTask.id,
+        new_project_title: parentTask.title,
+        subtasks: generatedSubtasks
+      }
+    });
+
+    return {
+      mode: "proposal",
+      intent: "breakdown_task",
+      answer: `Tôi đã chuẩn bị đề xuất chia nhỏ công việc "${parentTask.title}" thành ${generatedSubtasks.length} phần việc nhỏ hơn. Hãy xác nhận bên dưới.`,
+      proposal,
+      related_context: {
+        parent_task_id: parentTask.id,
+        parent_task_title: parentTask.title,
+        subtasks: generatedSubtasks
+      }
     };
   }
 
