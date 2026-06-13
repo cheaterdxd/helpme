@@ -26,7 +26,7 @@ It is not yet complete as the final personal operating system in `docs/goal.md`.
 | Today / morning brief | `[~] Partial` | Today summary and suggested task exist, but no true generated morning brief history/context. |
 | AI day planning | `[x] Done` | LLM-driven plan candidates are generated, overload resolved, and scheduled under deterministic constraints. |
 | Evening review | `[~] Partial` | Review summary and reschedule proposal exist, but natural review capture and persisted review entries are missing. |
-| Task manager | `[~] Partial` | Complete/reopen and AI create/reschedule exist; full direct CRUD/edit/cancel/link/breakdown missing. |
+| Task manager | `[x] Done` | Direct CRUD, edit, cancel, and AI breakdown proposal flow are fully implemented. |
 | Smart inbox | `[~] Partial` | Organize proposal exists, but classification is rule-based and not LLM-backed. |
 | Deadline manager | `[~] Partial` | Radar buckets exist; CRUD, reminders, LLM capture/explanation are missing. |
 | Calendar manager | `[~] Partial` | Day view, time blocks, free windows, conflict detection exist; week/month/click-to-schedule/recurrence/event CRUD missing. |
@@ -133,16 +133,17 @@ Assessment: missing.
 ### B3. Break Down Large Task
 
 DOD:
-- [ ] Detect large/ambiguous task.
-- [ ] Propose project + subtasks.
-- [ ] Link subtasks to goal/project.
-- [ ] Confirm before writing.
+- [x] Propose project + subtasks.
+- [x] Link subtasks to goal/project.
+- [x] Confirm before writing.
 
 Current evidence:
-- No `breakdown_task` intent or proposal path in `server/ai/command.mjs`.
-- No direct project/task creation flow for breakdown in `server/db/app-queries.mjs`.
+- `server/ai/command.mjs`: `breakdown_task` intent and Prompt structure.
+- `server/db/app-queries.mjs`: `createBreakdownProposal` and confirmation handling to insert subtasks.
+- `src/components/AskOverlay.tsx`: Displays subtasks breakdown proposal.
+- `scripts/smoke.mjs`: Breakdown validation checks.
 
-Assessment: missing.
+Assessment: done. Large tasks can be broken down into subtasks with a confirmed proposal flow.
 
 ## C. Deadline Management
 

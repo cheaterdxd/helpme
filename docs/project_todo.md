@@ -161,11 +161,11 @@ Note: Parts 1-9 were completed before the release rule was made strict, so some 
 
 ### Phase 2 - Domain Feature Verticals
 
-- [ ] Part 23 - Task & Inbox Workflows v2
+- [x] Part 23 - Task & Inbox Workflows v2
   - Goal: add direct task CRUD plus LLM-backed task create/edit/breakdown and inbox workflows.
-  - Release:
-  - Commit:
-  - Verified:
+  - Release: 2026-06-13
+  - Commit: e748480
+  - Verified: db:reset, check, build, smoke
 
 - [ ] Part 24 - Reminder & Notification Engine v1
   - Goal: activate reminders with LLM reminder capture and deterministic due/upcoming/done/snooze behavior.
