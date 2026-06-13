@@ -1,11 +1,11 @@
-import type { AppData, AskResponse, NowBriefing } from "./types";
+import type { AppData, AskResponse, NowBriefing, AppSettings } from "./types";
 
 export async function fetchNowBriefing(): Promise<NowBriefing> {
   return requestJson<NowBriefing>("/api/now", "Unable to load HelpMe briefing.");
 }
 
 export async function fetchAppData(): Promise<AppData> {
-  const [today, tasks, calendar, deadlines, habits, goals, review, aiStatus] = await Promise.all([
+  const [today, tasks, calendar, deadlines, habits, goals, review, aiStatus, settings] = await Promise.all([
     requestJson<AppData["today"]>("/api/today", "Unable to load Today."),
     requestJson<AppData["tasks"]>("/api/tasks", "Unable to load tasks."),
     requestJson<AppData["calendar"]>("/api/calendar", "Unable to load calendar."),
@@ -13,7 +13,8 @@ export async function fetchAppData(): Promise<AppData> {
     requestJson<AppData["habits"]>("/api/habits", "Unable to load habits."),
     requestJson<AppData["goals"]>("/api/goals", "Unable to load goals."),
     requestJson<AppData["review"]>("/api/review", "Unable to load review."),
-    requestJson<AppData["aiStatus"]>("/api/ai/status", "Unable to load AI status.")
+    requestJson<AppData["aiStatus"]>("/api/ai/status", "Unable to load AI status."),
+    requestJson<AppData["settings"]>("/api/settings", "Unable to load settings.")
   ]);
 
   return {
@@ -24,7 +25,8 @@ export async function fetchAppData(): Promise<AppData> {
     habits,
     goals,
     review,
-    aiStatus
+    aiStatus,
+    settings
   };
 }
 
@@ -81,6 +83,16 @@ export async function completeFocusSession(sessionId: string, completeTask = fal
       "Content-Type": "application/json"
     },
     body: JSON.stringify({ complete_task: completeTask })
+  });
+}
+
+export async function updateSettingsApi(settings: Partial<AppSettings>): Promise<AppSettings> {
+  return requestJson<AppSettings>("/api/settings", "HelpMe could not update settings.", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(settings)
   });
 }
 

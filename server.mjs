@@ -23,7 +23,9 @@ import {
   logHabitToday,
   organizeInboxIntoProposal,
   reopenTask,
-  startFocusSession
+  startFocusSession,
+  getSettings,
+  updateSettings
 } from "./server/db/app-queries.mjs";
 import { buildNowBriefing } from "./server/db/now-query.mjs";
 import { seedDatabase } from "./server/db/seed.mjs";
@@ -127,6 +129,13 @@ app.get("/api/goals", async () => getGoalsOverview());
 app.get("/api/review", async () => getReviewSummary());
 
 app.get("/api/ai/status", async () => getOllamaStatus());
+
+app.get("/api/settings", async () => getSettings());
+
+app.post("/api/settings", async (request) => {
+  const body = typeof request.body === "object" && request.body !== null ? request.body : {};
+  return updateSettings(body);
+});
 
 app.post("/api/ai/command", async (request, reply) => {
   const parsed = aiCommandRequestSchema.safeParse(request.body);

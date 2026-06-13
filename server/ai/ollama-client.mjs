@@ -4,19 +4,30 @@ import { sqlite } from "../db/client.mjs";
 const defaultBaseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
 const defaultModel = process.env.OLLAMA_MODEL || "qwen3:1.7b";
 
+function getSetting(key, defaultValue) {
+  try {
+    const row = sqlite.prepare("SELECT value_json FROM settings WHERE key = ?").get(key);
+    if (row) return JSON.parse(row.value_json);
+  } catch (error) {
+    // Ignore error
+  }
+  return defaultValue;
+}
+
 export async function getOllamaStatus() {
+  const model = getSetting("preferred_model", defaultModel);
   if (process.env.HELPME_MOCK_AI === "true") {
     return {
       provider: "ollama",
       ok: true,
       online: true,
-      model: defaultModel,
-      configured_model: defaultModel,
+      model: model,
+      configured_model: model,
       base_url: defaultBaseUrl,
       fallback_mode: "rule-based",
-      setup_hint: `Run \`ollama serve\` and \`ollama pull ${defaultModel}\` to enable local AI summaries.`,
+      setup_hint: `Run \`ollama serve\` and \`ollama pull ${model}\` to enable local AI summaries.`,
       latency_ms: 1,
-      models: [defaultModel],
+      models: [model],
       model_available: true,
       error: null
     };
@@ -26,11 +37,11 @@ export async function getOllamaStatus() {
     provider: "ollama",
     ok: false,
     online: false,
-    model: defaultModel,
-    configured_model: defaultModel,
+    model: model,
+    configured_model: model,
     base_url: defaultBaseUrl,
     fallback_mode: "rule-based",
-    setup_hint: `Run \`ollama serve\` and \`ollama pull ${defaultModel}\` to enable local AI summaries.`
+    setup_hint: `Run \`ollama serve\` and \`ollama pull ${model}\` to enable local AI summaries.`
   };
 
   try {
@@ -47,8 +58,8 @@ export async function getOllamaStatus() {
     }
 
     const body = await response.json();
-    const models = Array.isArray(body.models) ? body.models.map((model) => model.name) : [];
-    const modelAvailable = models.includes(defaultModel);
+    const models = Array.isArray(body.models) ? body.models.map((m) => m.name) : [];
+    const modelAvailable = models.includes(model);
 
     return {
       ...base,
@@ -57,7 +68,7 @@ export async function getOllamaStatus() {
       latency_ms: Date.now() - startedAt,
       models,
       model_available: modelAvailable,
-      error: modelAvailable ? null : `Configured model "${defaultModel}" is not installed.`
+      error: modelAvailable ? null : `Configured model "${model}" is not installed.`
     };
   } catch (error) {
     return {
@@ -68,7 +79,9 @@ export async function getOllamaStatus() {
   }
 }
 
-export async function runOllamaJson({ prompt, schema, validator, model = defaultModel, timeoutMs = 3000 }) {
+export async function runOllamaJson({ prompt, schema, validator, model, timeoutMs }) {
+  const resolvedModel = model ?? getSetting("preferred_model", defaultModel);
+  const resolvedTimeout = timeoutMs ?? getSetting("model_timeout_ms", 3000);
   const runId = `ai_run_${randomUUID()}`;
   const startedAt = Date.now();
   const createdAt = new Date().toISOString();
@@ -83,7 +96,7 @@ export async function runOllamaJson({ prompt, schema, validator, model = default
 
       recordAiRun({
         id: runId,
-        model,
+        model: resolvedModel,
         input: { prompt, schema },
         output: checked.data,
         status: "ok",
@@ -100,7 +113,7 @@ export async function runOllamaJson({ prompt, schema, validator, model = default
     } catch (error) {
       recordAiRun({
         id: runId,
-        model,
+        model: resolvedModel,
         input: { prompt, schema },
         output: null,
         status: "error",
@@ -119,13 +132,13 @@ export async function runOllamaJson({ prompt, schema, validator, model = default
 
   try {
     const response = await fetchWithTimeout(`${defaultBaseUrl}/api/generate`, {
-      timeoutMs,
+      timeoutMs: resolvedTimeout,
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model,
+        model: resolvedModel,
         prompt,
         stream: false,
         format: schema
@@ -146,7 +159,7 @@ export async function runOllamaJson({ prompt, schema, validator, model = default
 
     recordAiRun({
       id: runId,
-      model,
+      model: resolvedModel,
       input: { prompt, schema },
       output: checked.data,
       status: "ok",
@@ -163,7 +176,7 @@ export async function runOllamaJson({ prompt, schema, validator, model = default
   } catch (error) {
     recordAiRun({
       id: runId,
-      model,
+      model: resolvedModel,
       input: { prompt, schema },
       output: null,
       status: "error",

@@ -1,9 +1,20 @@
 import { randomUUID } from "node:crypto";
+import { sqlite } from "../db/client.mjs";
 
 const DEFAULT_QUICK_TIMEOUT_MS = 5000;
 const DEFAULT_DEEP_TIMEOUT_MS = 15000;
 const DEFAULT_MAX_STEPS = 6;
 const DEFAULT_MAX_CONTEXT_ITEMS = 24;
+
+function getSetting(key, defaultValue) {
+  try {
+    const row = sqlite.prepare("SELECT value_json FROM settings WHERE key = ?").get(key);
+    if (row) return JSON.parse(row.value_json);
+  } catch (error) {
+    // Ignore error
+  }
+  return defaultValue;
+}
 
 const allowedIntents = [
   "organize_inbox",
@@ -106,13 +117,13 @@ export async function orchestrateAiCommand({ rawMessage, execute, requestedMode 
 function buildBudget(mode) {
   const timeoutMs =
     mode === "deep"
-      ? Number(process.env.HELPME_AI_DEEP_TIMEOUT_MS || DEFAULT_DEEP_TIMEOUT_MS)
-      : Number(process.env.HELPME_AI_QUICK_TIMEOUT_MS || DEFAULT_QUICK_TIMEOUT_MS);
+      ? Number(getSetting("deep_timeout_ms", process.env.HELPME_AI_DEEP_TIMEOUT_MS || DEFAULT_DEEP_TIMEOUT_MS))
+      : Number(getSetting("model_timeout_ms", process.env.HELPME_AI_QUICK_TIMEOUT_MS || DEFAULT_QUICK_TIMEOUT_MS));
 
   return {
     timeout_ms: Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : DEFAULT_QUICK_TIMEOUT_MS,
-    max_steps: Number(process.env.HELPME_AI_MAX_STEPS || DEFAULT_MAX_STEPS),
-    max_context_items: Number(process.env.HELPME_AI_MAX_CONTEXT_ITEMS || DEFAULT_MAX_CONTEXT_ITEMS)
+    max_steps: Number(getSetting("max_steps", process.env.HELPME_AI_MAX_STEPS || DEFAULT_MAX_STEPS)),
+    max_context_items: Number(getSetting("max_context_items", process.env.HELPME_AI_MAX_CONTEXT_ITEMS || DEFAULT_MAX_CONTEXT_ITEMS))
   };
 }
 

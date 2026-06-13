@@ -9,7 +9,8 @@ import {
   fetchNowBriefing,
   logHabitToday,
   reopenTask,
-  startFocusSession
+  startFocusSession,
+  updateSettingsApi
 } from "./api";
 import { AskOrb } from "./components/AskOrb";
 import { AskOverlay } from "./components/AskOverlay";
@@ -18,7 +19,7 @@ import { NowScreen } from "./components/NowScreen";
 import { RoutePanel } from "./components/RoutePanel";
 import { TopBar } from "./components/TopBar";
 import type { Route } from "./navigation";
-import type { AppData, AskResponse, NowBriefing } from "./types";
+import type { AppData, AskResponse, NowBriefing, AppSettings } from "./types";
 
 export function App() {
   const [briefing, setBriefing] = useState<NowBriefing | null>(null);
@@ -152,6 +153,11 @@ export function App() {
     await loadAllData();
   }
 
+  async function handleUpdateSettings(settings: Partial<AppSettings>) {
+    await updateSettingsApi(settings);
+    await loadAllData();
+  }
+
   return (
     <div className="app-shell">
       <TopBar
@@ -181,6 +187,7 @@ export function App() {
             onLogHabit={handleLogHabit}
             onStartFocus={handleStartFocus}
             onCompleteFocus={handleCompleteFocus}
+            onUpdateSettings={handleUpdateSettings}
           />
         )}
       </main>

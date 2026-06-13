@@ -454,6 +454,18 @@ export type AiActionProposal = {
   created_at: string;
 };
 
+export type AppSettings = {
+  timezone: string;
+  working_window_start: string;
+  working_window_end: string;
+  preferred_model: string;
+  model_timeout_ms: number;
+  deep_mode: boolean;
+  display_name: string;
+  proactivity_level?: string;
+  visual_effect_mode?: string;
+};
+
 export type AppData = {
   today: TodayData;
   tasks: TaskCollections;
@@ -463,4 +475,5 @@ export type AppData = {
   goals: GoalsData;
   review: ReviewData;
   aiStatus: AiStatus;
+  settings: AppSettings;
 };

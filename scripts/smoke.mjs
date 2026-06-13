@@ -228,6 +228,26 @@ async function runSmokeChecks() {
   assert(fallbackCheck.intent === "fallback", "Unclear message should return fallback intent");
   assert(fallbackCheck.mode === "answer", "Fallback should return answer mode");
   assert(fallbackCheck.answer.includes("Tôi không hiểu rõ"), "Fallback answer should contain clarification instruction");
+
+  // Verify settings endpoints
+  const settings = await getJson("/api/settings");
+  assert(settings.display_name === "Tuan", "Default display_name should be Tuan");
+  assert(settings.working_window_start === "20:00", "Default working_window_start should be 20:00");
+
+  const updatedSettings = await postJson("/api/settings", {
+    display_name: "Tuan Dev",
+    timezone: "Asia/Ho_Chi_Minh",
+    working_window_start: "19:00",
+    working_window_end: "22:00",
+    preferred_model: "qwen3:1.7b",
+    model_timeout_ms: 4000,
+    deep_mode: true
+  });
+  assert(updatedSettings.display_name === "Tuan Dev", "Updated display_name should be Tuan Dev");
+  assert(updatedSettings.model_timeout_ms === 4000, "Updated model_timeout_ms should be 4000");
+
+  const todayAfterSettings = await getJson("/api/today");
+  assert(todayAfterSettings.greeting === "Good evening, Tuan Dev.", "Greeting should reflect updated display name");
 }
 
 async function waitForHealth() {

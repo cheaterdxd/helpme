@@ -16,9 +16,9 @@ import {
   Target,
   Timer
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState, type FormEvent } from "react";
 import { routeMeta, type Route } from "../navigation";
-import type { ApiTask, AppData, DeadlineRadar } from "../types";
+import type { ApiTask, AppData, DeadlineRadar, AppSettings } from "../types";
 
 type SecondaryRoute = Exclude<Route, "now">;
 
@@ -32,6 +32,7 @@ type RoutePanelProps = {
   onLogHabit: (habitId: string) => Promise<void>;
   onStartFocus: (taskId: string) => Promise<void>;
   onCompleteFocus: (sessionId: string, completeTask?: boolean) => Promise<void>;
+  onUpdateSettings: (settings: Partial<AppSettings>) => Promise<void>;
 };
 
 export function RoutePanel({
@@ -43,7 +44,8 @@ export function RoutePanel({
   onReopenTask,
   onLogHabit,
   onStartFocus,
-  onCompleteFocus
+  onCompleteFocus,
+  onUpdateSettings
 }: RoutePanelProps) {
   if (error) {
     return (
@@ -82,7 +84,7 @@ export function RoutePanel({
   if (route === "goals") return <GoalsView data={data} />;
   if (route === "habits") return <HabitsView data={data} onLogHabit={onLogHabit} />;
   if (route === "review") return <ReviewView data={data} onCommand={onCommand} onCompleteTask={onCompleteTask} onReopenTask={onReopenTask} />;
-  return <SettingsView data={data} />;
+  return <SettingsView data={data} onUpdateSettings={onUpdateSettings} />;
 }
 
 function TodayView({
@@ -440,17 +442,69 @@ function ReviewView({
   );
 }
 
-function SettingsView({ data }: { data: AppData }) {
+function SettingsView({
+  data,
+  onUpdateSettings
+}: {
+  data: AppData;
+  onUpdateSettings: (settings: Partial<AppSettings>) => Promise<void>;
+}) {
+  const settings = data.settings || {
+    display_name: "",
+    timezone: "Asia/Ho_Chi_Minh",
+    working_window_start: "20:00",
+    working_window_end: "23:00",
+    preferred_model: "qwen3:1.7b",
+    model_timeout_ms: 3000,
+    deep_mode: false
+  };
+
+  const [displayName, setDisplayName] = useState(settings.display_name);
+  const [timezone, setTimezone] = useState(settings.timezone);
+  const [workingWindowStart, setWorkingWindowStart] = useState(settings.working_window_start);
+  const [workingWindowEnd, setWorkingWindowEnd] = useState(settings.working_window_end);
+  const [preferredModel, setPreferredModel] = useState(settings.preferred_model);
+  const [modelTimeoutMs, setModelTimeoutMs] = useState(settings.model_timeout_ms);
+  const [deepMode, setDeepMode] = useState(settings.deep_mode);
+
+  const [saving, setSaving] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setSuccessMessage("");
+    setErrorMessage("");
+
+    try {
+      await onUpdateSettings({
+        display_name: displayName,
+        timezone,
+        working_window_start: workingWindowStart,
+        working_window_end: workingWindowEnd,
+        preferred_model: preferredModel,
+        model_timeout_ms: Number(modelTimeoutMs),
+        deep_mode: deepMode
+      });
+      setSuccessMessage("Preferences saved successfully!");
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Failed to save settings.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <section className="os-view" aria-label="Settings">
       <ViewHeader
         icon={<AlarmClock aria-hidden="true" size={20} />}
         kicker="Settings"
         title="Local AI and behavior"
-        body="Settings is quiet for now: the important signal is whether the local planner model is reachable."
+        body="Customize your schedule, AI runtime budget, model selections, and user profile."
       />
 
-      <div className="settings-grid">
+      <div className="settings-grid" style={{ marginBottom: "24px" }}>
         <div>
           <span>Ollama daemon</span>
           <strong>{data.aiStatus.online ? "Online" : "Offline"}</strong>
@@ -464,7 +518,111 @@ function SettingsView({ data }: { data: AppData }) {
           <strong>{data.aiStatus.ok ? "Ollama" : data.aiStatus.fallback_mode}</strong>
         </div>
       </div>
-      {!data.aiStatus.ok && <p className="settings-note">{data.aiStatus.error ?? data.aiStatus.setup_hint}</p>}
+      {!data.aiStatus.ok && <p className="settings-note" style={{ marginBottom: "24px" }}>{data.aiStatus.error ?? data.aiStatus.setup_hint}</p>}
+
+      <form onSubmit={handleSubmit} className="settings-container">
+        {successMessage && <div className="settings-alert-success">{successMessage}</div>}
+        {errorMessage && <div className="settings-alert-error">{errorMessage}</div>}
+
+        <div className="settings-section-card">
+          <h3>Personal Profile</h3>
+          <div className="settings-form-group">
+            <label htmlFor="displayName">Display Name</label>
+            <input
+              type="text"
+              id="displayName"
+              className="settings-input"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              required
+            />
+          </div>
+          <div className="settings-form-group">
+            <label htmlFor="timezone">Timezone</label>
+            <input
+              type="text"
+              id="timezone"
+              className="settings-input"
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+              required
+            />
+          </div>
+        </div>
+
+        <div className="settings-section-card">
+          <h3>Working Hours Window</h3>
+          <p className="settings-note" style={{ marginBottom: "14px", fontSize: "13px" }}>
+            Define when HelpMe should schedule your daily activities and focus sessions.
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+            <div className="settings-form-group">
+              <label htmlFor="workingWindowStart">Start Time (HH:MM)</label>
+              <input
+                type="text"
+                id="workingWindowStart"
+                className="settings-input"
+                placeholder="e.g. 20:00"
+                value={workingWindowStart}
+                onChange={(e) => setWorkingWindowStart(e.target.value)}
+                required
+              />
+            </div>
+            <div className="settings-form-group">
+              <label htmlFor="workingWindowEnd">End Time (HH:MM)</label>
+              <input
+                type="text"
+                id="workingWindowEnd"
+                className="settings-input"
+                placeholder="e.g. 23:00"
+                value={workingWindowEnd}
+                onChange={(e) => setWorkingWindowEnd(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="settings-section-card">
+          <h3>Local AI Runtime Configuration</h3>
+          <div className="settings-form-group">
+            <label htmlFor="preferredModel">Preferred LLM Model</label>
+            <input
+              type="text"
+              id="preferredModel"
+              className="settings-input"
+              value={preferredModel}
+              onChange={(e) => setPreferredModel(e.target.value)}
+              required
+            />
+          </div>
+          <div className="settings-form-group">
+            <label htmlFor="modelTimeoutMs">Quick Model Timeout (ms)</label>
+            <input
+              type="number"
+              id="modelTimeoutMs"
+              className="settings-input"
+              value={modelTimeoutMs}
+              onChange={(e) => setModelTimeoutMs(Number(e.target.value))}
+              required
+            />
+          </div>
+          <div className="settings-form-group settings-checkbox-group">
+            <input
+              type="checkbox"
+              id="deepMode"
+              className="settings-checkbox"
+              checked={deepMode}
+              onChange={(e) => setDeepMode(e.target.checked)}
+            />
+            <label htmlFor="deepMode" style={{ cursor: "pointer" }}>Enable Deep Planning Mode by Default</label>
+          </div>
+        </div>
+
+        <button type="submit" className="settings-save-btn" disabled={saving}>
+          {saving ? "Saving..." : "Save preferences"}
+        </button>
+      </form>
     </section>
   );
 }

@@ -25,7 +25,7 @@ export function getTodayView() {
 
   return {
     date: today,
-    greeting: "Good evening, Tuan.",
+    greeting: `Good evening, ${getSetting("display_name", "Tuan")}.`,
     summary: {
       due_today: deadlines.filter((deadline) => classifyDeadline(deadline, today) === "today").length,
       overdue: deadlines.filter((deadline) => classifyDeadline(deadline, today) === "overdue").length,
@@ -97,6 +97,8 @@ export function getTaskCollections() {
 
 export function getCalendarView() {
   const today = getTodayDate();
+  const start = getSetting("working_window_start", "20:00");
+  const end = getSetting("working_window_end", "23:00");
 
   return {
     mode: "day",
@@ -105,8 +107,8 @@ export function getCalendarView() {
     time_blocks: selectTimeBlocksForDate(today),
     free_windows: buildFreeWindows({
       date: today,
-      availableStart: "20:00",
-      availableEnd: "23:00",
+      availableStart: start,
+      availableEnd: end,
       includeTimeBlocks: true
     })
   };
@@ -805,10 +807,15 @@ function selectFocusSession(sessionId) {
 }
 
 function buildFreeWindows({ date, availableStart, availableEnd, replacePlanId = null, includeTimeBlocks = true }) {
+  const defaultStart = getSetting("working_window_start", "20:00");
+  const defaultEnd = getSetting("working_window_end", "23:00");
+  const finalStart = availableStart || defaultStart;
+  const finalEnd = availableEnd || defaultEnd;
+
   const baseWindow = {
     id: "free_requested_window",
-    start: `${date}T${availableStart}:00+07:00`,
-    end: `${date}T${availableEnd}:00+07:00`,
+    start: `${date}T${finalStart}:00+07:00`,
+    end: `${date}T${finalEnd}:00+07:00`,
     label: "Requested focus window"
   };
   const busyIntervals = selectBusyIntervalsForDate(date, { replacePlanId, includeTimeBlocks });
@@ -1110,7 +1117,13 @@ function availableMinutesForDate(date) {
     .prepare("SELECT start_at, end_at FROM calendar_blocks WHERE type = 'available' AND substr(start_at, 1, 10) = ?")
     .all(date);
   const total = sumMinutes(blocks);
-  return total || 180;
+  if (total) return total;
+
+  const start = getSetting("working_window_start", "20:00");
+  const end = getSetting("working_window_end", "23:00");
+  const startMin = timeToMinutes(start);
+  const endMin = timeToMinutes(end);
+  return Math.max(endMin - startMin, 0) || 180;
 }
 
 function buildOverloadSummary(plannedMinutes, availableMinutes, tasks) {
@@ -1261,4 +1274,39 @@ function addMinutesIso(value, minutes) {
 
 function formatDisplayTime(value) {
   return value.replace("T", " ").slice(0, 16);
+}
+
+export function getSetting(key, defaultValue) {
+  try {
+    const row = sqlite.prepare("SELECT value_json FROM settings WHERE key = ?").get(key);
+    if (row) return JSON.parse(row.value_json);
+  } catch (error) {
+    // Ignore error
+  }
+  return defaultValue;
+}
+
+export function getSettings() {
+  const rows = sqlite.prepare("SELECT key, value_json FROM settings").all();
+  const result = {};
+  for (const row of rows) {
+    result[row.key] = JSON.parse(row.value_json);
+  }
+  return result;
+}
+
+export function updateSettings(newSettings) {
+  const now = new Date().toISOString();
+  sqlite.transaction(() => {
+    for (const [key, value] of Object.entries(newSettings)) {
+      sqlite
+        .prepare(
+          `INSERT INTO settings (id, key, value_json, updated_at)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at`
+        )
+        .run(`setting_${key}`, key, JSON.stringify(value), now);
+    }
+  })();
+  return getSettings();
 }
