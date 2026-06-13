@@ -33,7 +33,7 @@ It is not yet complete as the final personal operating system in `docs/goal.md`.
 | Focus sessions | `[x] N/A` | Focus sessions removed from project scope. |
 | Habit tracker | `[~] Partial` | Check-in/log, streak, completion, insight exist; create/edit/routine builder/deeper review missing. |
 | Goal manager | `[~] Partial` | Goal -> project -> task overview exists; CRUD, breakdown, true progress intelligence missing. |
-| Reminder/notification engine | `[ ] Missing` | Schema exists, but no usable reminder APIs/notifications. |
+| Reminder/notification engine | `[x] Done` | Direct CRUD, auto-sync for tasks/deadlines, snooze/complete, and AI command capture are fully active. |
 | AI command layer | `[x] Done` | Orb, proposals, confirm flow exist; orchestrator and LLM intent parser fully implemented. |
 | Local LLM integration | `[~] Partial` | Ollama client/status/JSON call/logging exist; limited usage, not primary command brain. |
 | AI safety | `[~] Partial` | Proposal-first, reject/cancel, and conflict validation exist; not all mutating domains implemented yet. |
@@ -453,18 +453,21 @@ Assessment: partial.
 
 DOD:
 - [x] Reminder table exists.
-- [ ] Reminder CRUD APIs.
-- [ ] Due/upcoming reminder API.
-- [ ] Snooze/done behavior.
-- [ ] Reminder before deadline.
-- [ ] Reminder before scheduled task.
-- [ ] Overdue alert workflow.
+- [x] Reminder CRUD APIs.
+- [x] Due/upcoming reminder API.
+- [x] Snooze/done behavior.
+- [x] Reminder before deadline.
+- [x] Reminder before scheduled task.
+- [x] Overdue alert workflow.
 
 Current evidence:
-- `server/db/schema.mjs`: `reminders`.
-- No `/api/reminders` route in `server.mjs`.
+- `server/db/schema.mjs`: `reminders` table.
+- `server/db/app-queries.mjs`: `getReminders`, `createReminder`, `updateReminder`, `completeReminder`, `snoozeReminder`, `syncAutomaticReminders` helpers.
+- `server.mjs`: `/api/reminders` GET/POST/PATCH/DELETE endpoints, and custom snooze/complete.
+- `src/components/RoutePanel.tsx`: `TodayView` displays overdue notifications banner.
+- `scripts/smoke.mjs`: automated verification for reminders and AI capture.
 
-Assessment: missing as a usable feature.
+Assessment: done.
 
 ## K. Safety, Persistence, And Verification
 

@@ -167,11 +167,11 @@ Note: Parts 1-9 were completed before the release rule was made strict, so some 
   - Commit: e748480
   - Verified: db:reset, check, build, smoke
 
-- [ ] Part 24 - Reminder & Notification Engine v1
+- [x] Part 24 - Reminder & Notification Engine v1
   - Goal: activate reminders with LLM reminder capture and deterministic due/upcoming/done/snooze behavior.
-  - Release:
-  - Commit:
-  - Verified:
+  - Release: 2026-06-13
+  - Commit: 1e5b9a1
+  - Verified: db:reset, check, build, smoke
 
 - [ ] Part 25 - Calendar & Time Blocking v2
   - Goal: add practical day/week calendar views, event/time-block APIs, and LLM-backed event/time-block proposals.
