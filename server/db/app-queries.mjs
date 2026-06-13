@@ -6,7 +6,8 @@ import {
   createPlannerDecision,
   getLocalDate,
   isSameDate,
-  scoreDeadlinePressure
+  scoreDeadlinePressure,
+  generatePlanWithLlm
 } from "../ai/planner.mjs";
 import { sqlite } from "./client.mjs";
 
@@ -228,7 +229,7 @@ export function organizeInboxIntoProposal() {
   return { actions, groups, proposal };
 }
 
-export function createPlanDayProposal({ availableStart = "20:00", availableEnd = "23:00" } = {}) {
+export async function createPlanDayProposal({ availableStart = "20:00", availableEnd = "23:00", userMessage = "" } = {}) {
   const date = getTodayDate();
   const planId = getDailyPlanId(date);
   const freeWindows = buildFreeWindows({
@@ -239,7 +240,46 @@ export function createPlanDayProposal({ availableStart = "20:00", availableEnd =
     includeTimeBlocks: true
   });
   const availableMinutes = sumMinutes(freeWindows);
-  const tasks = rankOpenTasks(selectTasks(), selectDeadlines(), { today: date, availableMinutes }).filter((task) => task.status !== "inbox");
+  const allTasks = rankOpenTasks(selectTasks(), selectDeadlines(), { today: date, availableMinutes }).filter((task) => task.status !== "inbox");
+
+  let selectedTasks = allTasks;
+  let explanation = null;
+  let overloadResolutionSummary = null;
+  let aiMetadata = {
+    provider: "rule-based",
+    used_fallback: true,
+    fallback_reason: "Ollama did not generate plan candidates.",
+    run_id: null
+  };
+
+  try {
+    const llmPlan = await generatePlanWithLlm({
+      tasks: allTasks,
+      freeWindows,
+      availableMinutes,
+      userMessage,
+      today: date
+    });
+
+    if (llmPlan && Array.isArray(llmPlan.selected_task_ids) && llmPlan.selected_task_ids.length > 0) {
+      const selectedMap = new Map(llmPlan.selected_task_ids.map((id, index) => [id, index]));
+      selectedTasks = allTasks
+        .filter((task) => selectedMap.has(task.id))
+        .sort((a, b) => selectedMap.get(a.id) - selectedMap.get(b.id));
+
+      explanation = llmPlan.plan_explanation;
+      overloadResolutionSummary = llmPlan.overload_resolution_summary;
+      aiMetadata = {
+        provider: "ollama",
+        used_fallback: false,
+        run_id: llmPlan.run_id
+      };
+    }
+  } catch (error) {
+    overloadResolutionSummary = "Hệ thống tự động sắp xếp dựa trên độ ưu tiên và thời hạn do AI ngoại tuyến.";
+    aiMetadata.fallback_reason = error instanceof Error ? error.message : String(error);
+  }
+
   const blocks = [];
   const windowCursors = freeWindows.map((window) => ({
     ...window,
@@ -247,7 +287,7 @@ export function createPlanDayProposal({ availableStart = "20:00", availableEnd =
     end_minutes: timeToMinutes(window.end.slice(11, 16))
   }));
 
-  for (const task of tasks) {
+  for (const task of selectedTasks) {
     const duration = Math.min(task.estimated_minutes ?? 30, 90);
     const window = windowCursors.find((item) => item.cursor_minutes + duration <= item.end_minutes);
     if (!window) continue;
@@ -280,13 +320,13 @@ export function createPlanDayProposal({ availableStart = "20:00", availableEnd =
     replacePlanId: planId,
     blocks,
     freeWindows,
-    taskCount: tasks.length
+    taskCount: allTasks.length
   });
 
   const proposal = createActionProposal({
     intent: "plan_day",
     title: "Plan today",
-    summary: `Create ${blocks.length} conflict-free time block${blocks.length === 1 ? "" : "s"} between ${availableStart} and ${availableEnd}.`,
+    summary: explanation ?? `Create ${blocks.length} conflict-free time block${blocks.length === 1 ? "" : "s"} between ${availableStart} and ${availableEnd}.`,
     payload: {
       plan_date: date,
       available_start: availableStart,
@@ -296,7 +336,14 @@ export function createPlanDayProposal({ availableStart = "20:00", availableEnd =
     }
   });
 
-  return { blocks, proposal, validation };
+  return {
+    blocks,
+    proposal,
+    validation,
+    explanation,
+    overload_resolution_summary: overloadResolutionSummary,
+    ai: aiMetadata
+  };
 }
 
 export function createTaskProposal({ title, dueAt = null, scheduledStart = null, estimatedMinutes = 30, priority = 50 }) {

@@ -1,3 +1,6 @@
+import { z } from "zod";
+import { runOllamaJson } from "./ollama-client.mjs";
+
 export const ACTIVE_TASK_STATUSES = ["open", "todo", "doing", "in_focus", "inbox"];
 export const PLANNABLE_TASK_STATUSES = ["open", "todo", "doing", "in_focus"];
 export const DONE_TASK_STATUSES = ["done", "cancelled"];
@@ -156,5 +159,92 @@ function toAlternative(task) {
     title: task.title,
     score: task.total_score,
     reason: task.reason_summary
+  };
+}
+
+export async function generatePlanWithLlm({ tasks, freeWindows, availableMinutes, userMessage, today = getLocalDate() }) {
+  const taskListText = tasks
+    .slice(0, 10)
+    .map((t) => `- ID: "${t.id}", Title: "${t.title}", Score: ${t.score}, Duration: ${t.estimated_minutes || 30}m, Goal: "${t.goal_title || "None"}", Reason: "${t.reason}"`)
+    .join("\n");
+
+  const windowsText = freeWindows
+    .map((w) => `- ${w.start.slice(11, 16)} to ${w.end.slice(11, 16)} (${w.minutes} minutes)`)
+    .join("\n");
+
+  const totalOpenMinutes = tasks.reduce((sum, t) => sum + (t.estimated_minutes ?? 30), 0);
+
+  const prompt = [
+    "You are the Daily Planner AI for HelpMe, a personal operating system.",
+    "Your job is to select the best tasks to schedule for today from a list of prioritized tasks, fitting the available focus windows.",
+    "Analyze the available windows, task scores/urgency, and the user's special instructions (if any) to decide which tasks to do today.",
+    "",
+    `Today's Date: ${today}`,
+    `User Request: "${userMessage}"`,
+    `Total Available Focus Time: ${availableMinutes} minutes`,
+    `Available Focus Windows today:`,
+    windowsText,
+    "",
+    `Prioritized Task List (Top 10):`,
+    taskListText,
+    "",
+    `Overload Stats:`,
+    `- Total estimated minutes for ALL open tasks: ${totalOpenMinutes} minutes`,
+    `- Available focus minutes: ${availableMinutes} minutes`,
+    `- Overloaded: ${totalOpenMinutes > availableMinutes ? "YES" : "NO"}`,
+    "",
+    "Rules:",
+    "1. Select a subset of task IDs from the prioritized list that fit within the available focus time.",
+    "2. If overloaded, resolve it by selecting only the most urgent tasks (highest scores) or tasks related to the user request. State how you resolved the overload in overload_resolution_summary.",
+    "3. Keep the selected task IDs in your preferred execution order.",
+    "4. Return JSON only conforming to the schema.",
+    "",
+    "Format of JSON output:",
+    "{",
+    '  "selected_task_ids": ["task_id_1", "task_id_2"],',
+    '  "overload_resolved": true,',
+    '  "overload_resolution_summary": "Vietnamese explanation of how overload was resolved (e.g., postponed learning task to prioritize critical bug fix)",',
+    '  "plan_explanation": "Vietnamese short summary of the plan choices and order (max 2 sentences)"',
+    "}"
+  ].join("\n");
+
+  const schema = {
+    type: "object",
+    properties: {
+      selected_task_ids: {
+        type: "array",
+        items: { type: "string" }
+      },
+      overload_resolved: { type: "boolean" },
+      overload_resolution_summary: { type: "string" },
+      plan_explanation: { type: "string" }
+    },
+    required: ["selected_task_ids", "overload_resolved", "overload_resolution_summary", "plan_explanation"]
+  };
+
+  const validator = z.object({
+    selected_task_ids: z.array(z.string()),
+    overload_resolved: z.boolean(),
+    overload_resolution_summary: z.string().trim(),
+    plan_explanation: z.string().trim()
+  });
+
+  const result = await runOllamaJson({
+    prompt,
+    schema,
+    validator,
+    timeoutMs: 4000
+  });
+
+  if (!result.ok) {
+    throw new Error(result.error || "Ollama failed to generate plan candidates.");
+  }
+
+  return {
+    selected_task_ids: result.value.selected_task_ids,
+    overload_resolved: result.value.overload_resolved,
+    overload_resolution_summary: result.value.overload_resolution_summary,
+    plan_explanation: result.value.plan_explanation,
+    run_id: result.run_id
   };
 }

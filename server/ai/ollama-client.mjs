@@ -227,7 +227,17 @@ function formatError(error) {
 function mockOllamaResponse(prompt) {
   const norm = prompt.toLowerCase();
 
-  // 1. Plan summary mock
+  // 1. Daily planner candidates mock
+  if (norm.includes("select the best tasks to schedule for today")) {
+    return {
+      selected_task_ids: ["task_practice_questions", "task_read_notes"],
+      overload_resolved: false,
+      overload_resolution_summary: "Không có quá tải.",
+      plan_explanation: "Tôi đã sắp xếp thời gian để bạn tập trung học AWS."
+    };
+  }
+
+  // 1.5. Plan summary mock
   if (norm.includes("summarize this daily plan")) {
     return {
       summary: "Tôi đã lập kế hoạch cho buổi tối hôm nay.",

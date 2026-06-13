@@ -140,7 +140,9 @@ async function runSmokeChecks() {
   assert(Array.isArray(plan.related_context?.validation?.blocked_intervals), "Plan command should include blocked intervals");
   assert(plan.related_context.validation.conflict_count === 0, "Plan command should produce conflict-free blocks");
   assertNoPlanConflicts(plan.related_context.blocks, plan.related_context.validation.blocked_intervals);
-  assert(plan.related_context?.ai?.provider, "Plan command should include AI provider metadata");
+  assert(plan.related_context?.ai?.provider === "ollama", "Plan command should include AI provider metadata");
+  assert(plan.answer === "Tôi đã sắp xếp thời gian để bạn tập trung học AWS.", "Plan command should include LLM explanation");
+  assert(plan.related_context.reason === "Không có quá tải.", "Plan command should include LLM overload resolution summary");
 
   const planConfirmed = await postJson(`/api/ai/proposals/${plan.proposal.id}/confirm`, {});
   assert(planConfirmed.ok === true, "Confirm plan proposal should return ok");

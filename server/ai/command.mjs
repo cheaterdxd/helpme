@@ -17,19 +17,7 @@ export const aiCommandRequestSchema = z.object({
   message: z.string().trim().min(1)
 });
 
-const plannerSummaryJsonSchema = {
-  type: "object",
-  properties: {
-    summary: { type: "string" },
-    reason: { type: "string" }
-  },
-  required: ["summary", "reason"]
-};
-
-const plannerSummaryValidator = z.object({
-  summary: z.string().trim().min(1).max(280),
-  reason: z.string().trim().min(1).max(320)
-});
+// Removed post-hoc planner summary schemas
 
 const intentParserJsonSchema = {
   type: "object",
@@ -162,19 +150,21 @@ async function executeAiCommand({ message, normalized }) {
       availableStart: parsed.availableStart || "20:00",
       availableEnd: parsed.availableEnd || "23:00"
     };
-    const { blocks, proposal, validation } = createPlanDayProposal(window);
-    const enriched = await enrichPlanSummary(message, blocks);
+    const { blocks, proposal, validation, explanation, overload_resolution_summary, ai } = await createPlanDayProposal({
+      ...window,
+      userMessage: message
+    });
 
     return {
       mode: "proposal",
       intent: "plan_day",
-      answer: enriched.summary ?? `I prepared a plan for ${window.availableStart}-${window.availableEnd}.`,
+      answer: explanation ?? `Tôi đã lập kế hoạch cho buổi tối hôm nay (${window.availableStart} - ${window.availableEnd}).`,
       proposal,
       related_context: {
         blocks,
         validation,
-        reason: enriched.reason ?? "Rule-based planner selected tasks by deadline, priority, and effort.",
-        ai: enriched.ai
+        reason: overload_resolution_summary ?? "Hệ thống tự động sắp xếp dựa trên độ ưu tiên và thời hạn.",
+        ai
       }
     };
   }
@@ -281,49 +271,7 @@ function readOnlyAnswer(intent, answer, relatedContext) {
   };
 }
 
-async function enrichPlanSummary(message, blocks) {
-  const prompt = [
-    "Return JSON only.",
-    "You are HelpMe, a calm local-first personal operating system.",
-    "Summarize this daily plan in Vietnamese without chain-of-thought.",
-    `User request: ${message}`,
-    `Blocks: ${JSON.stringify(blocks)}`
-  ].join("\n");
-
-  const result = await runOllamaJson({
-    prompt,
-    schema: plannerSummaryJsonSchema,
-    validator: plannerSummaryValidator,
-    timeoutMs: 2500
-  });
-
-  if (!result.ok) {
-    return {
-      summary: null,
-      reason: null,
-      ai: buildFallbackAiMeta(result.error, result.run_id)
-    };
-  }
-
-  return {
-    summary: result.value.summary,
-    reason: result.value.reason,
-    ai: {
-      provider: "ollama",
-      used_fallback: false,
-      run_id: result.run_id
-    }
-  };
-}
-
-function buildFallbackAiMeta(error, runId = null) {
-  return {
-    provider: "rule-based",
-    used_fallback: true,
-    fallback_reason: error ?? "Ollama did not return a valid planner summary.",
-    run_id: runId
-  };
-}
+// Post-hoc enrichment helpers removed
 
 function normalize(value) {
   return value
