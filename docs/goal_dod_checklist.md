@@ -21,7 +21,7 @@ It is not yet complete as the final personal operating system in `docs/goal.md`.
 | --- | --- | --- |
 | Web server app | `[x] Done` | Fastify serves APIs and production static files. |
 | SQLite data foundation | `[x] Done` | Core entities exist in schema and migrations. |
-| Core navigation/screens | `[~] Partial` | Screens exist, but several are read-only or shallow. |
+| Core navigation/screens | `[~] Partial` | Screens exist with standardized loading, empty, and error states; week calendar/drag-drop missing. |
 | Now recommended action | `[x] Done` | Now has goal -> project -> task selection and AI recommendation signal. |
 | Today / morning brief | `[~] Partial` | Today summary and suggested focus exist, but no true generated morning brief history/context. |
 | AI day planning | `[x] Done` | LLM-driven plan candidates are generated, overload resolved, and scheduled under deterministic constraints. |
