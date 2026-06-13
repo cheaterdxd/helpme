@@ -37,7 +37,7 @@ It is not yet complete as the final personal operating system in `docs/goal.md`.
 | AI command layer | `[x] Done` | Orb, proposals, confirm flow exist; orchestrator and LLM intent parser fully implemented. |
 | Local LLM integration | `[~] Partial` | Ollama client/status/JSON call/logging exist; limited usage, not primary command brain. |
 | AI safety | `[~] Partial` | Proposal-first, reject/cancel, and conflict validation exist; not all mutating domains implemented yet. |
-| Settings/preferences | `[ ] Missing` | Settings screen mainly displays local AI status; no editable preferences. |
+| Settings/preferences | `[x] Done` | User timezone, display name, working windows, and local AI preferences are editable in UI and utilized by the system runtime. |
 | Verification | `[x] Done` | Smoke script covers core APIs, proposals, focus, habits, conflicts. |
 
 ## A. Daily Management
@@ -321,7 +321,7 @@ DOD:
 - [x] Settings screen.
 - [~] Screens are backed by SQLite data.
 - [ ] Calendar week/month views.
-- [ ] Settings editing.
+- [x] Settings editing.
 - [ ] Drag/drop interactions.
 
 Current evidence:
@@ -348,7 +348,7 @@ DOD:
 - [x] Time block.
 - [x] AI run.
 - [x] AI action proposal.
-- [~] Settings.
+- [x] Settings.
 - [ ] Tags.
 - [ ] Milestones.
 - [ ] Review entries.

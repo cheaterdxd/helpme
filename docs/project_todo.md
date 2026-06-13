@@ -141,11 +141,11 @@ Note: Parts 1-9 were completed before the release rule was made strict, so some 
   - Commit: e183287
   - Verified: db:reset, check, build, smoke
 
-- [ ] Part 20 - Settings & Model Runtime Foundation
+- [x] Part 20 - Settings & Model Runtime Foundation
   - Goal: make user preferences and model behavior settings editable and used by the AI orchestrator/planner.
-  - Release:
-  - Commit:
-  - Verified:
+  - Release: 2026-06-13
+  - Commit: 3d4b638
+  - Verified: db:reset, check, build, smoke
 
 - [ ] Part 21 - Planner Engine Foundation v2
   - Goal: combine deterministic scheduling constraints with LLM-generated plan candidates, overload resolution, and explanations.
