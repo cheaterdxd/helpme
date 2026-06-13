@@ -176,7 +176,7 @@ Note: Parts 1-9 were completed before the release rule was made strict, so some 
 - [x] Part 25 - Calendar & Time Blocking v2
   - Goal: add practical day/week calendar views, event/time-block APIs, and LLM-backed event/time-block proposals.
   - Release: 2026-06-13
-  - Commit: b972498
+  - Commit: 24d1424
   - Verified: check, build
 
 - [ ] Part 26 - Deadline Workflows v2
