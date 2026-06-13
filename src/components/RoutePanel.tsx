@@ -19,6 +19,7 @@ import {
 import { type ReactNode, useState, type FormEvent } from "react";
 import { routeMeta, type Route } from "../navigation";
 import type { ApiTask, AppData, DeadlineRadar, AppSettings } from "../types";
+import { LoadingState, ErrorState, EmptyState } from "./UIFeedback";
 
 type SecondaryRoute = Exclude<Route, "now">;
 
@@ -49,21 +50,21 @@ export function RoutePanel({
 }: RoutePanelProps) {
   if (error) {
     return (
-      <section className="route-panel" aria-label={routeMeta[route].label} data-active="true">
-        <p className="block-label">{routeMeta[route].label}</p>
-        <h1>Unable to load HelpMe data.</h1>
-        <p>{error}</p>
-      </section>
+      <ErrorState
+        kicker={routeMeta[route].label}
+        title="Unable to load HelpMe data."
+        error={error}
+      />
     );
   }
 
   if (!data) {
     return (
-      <section className="route-panel" aria-label={routeMeta[route].label} data-active="true">
-        <p className="block-label">{routeMeta[route].label}</p>
-        <h1>Loading HelpMe personal OS.</h1>
-        <p>Reading tasks, calendar, deadlines, habits, goals, and planner state.</p>
-      </section>
+      <LoadingState
+        kicker={routeMeta[route].label}
+        title="Loading HelpMe personal OS."
+        body="Reading tasks, calendar, deadlines, habits, goals, and planner state."
+      />
     );
   }
 
@@ -244,7 +245,10 @@ function InboxView({ data, onCommand }: { data: AppData; onCommand: (message: st
           ))}
         </div>
       ) : (
-        <p className="empty-state">Inbox is clear.</p>
+        <EmptyState
+          title="Inbox is clear"
+          message="Vague or unsorted tasks will show up here until HelpMe organizes them."
+        />
       )}
     </section>
   );
@@ -321,7 +325,9 @@ function DeadlinesView({ radar }: { radar: DeadlineRadar }) {
                 </div>
               ))
             ) : (
-              <p className="empty-state">Clear</p>
+              <div style={{ color: "var(--muted)", fontSize: "13px", padding: "12px 4px" }}>
+                Clear
+              </div>
             )}
           </section>
         ))}
@@ -430,7 +436,11 @@ function ReviewView({
                 </span>
               </div>
             ))}
-            {!data.review.reschedule_suggestion.length && <p className="empty-state">No reschedule needed.</p>}
+            {!data.review.reschedule_suggestion.length && (
+              <div style={{ color: "var(--muted)", fontSize: "13px", padding: "12px 4px" }}>
+                No reschedule needed.
+              </div>
+            )}
           </div>
         </section>
         <section>

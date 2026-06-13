@@ -1,6 +1,7 @@
 import { Clock3, FolderKanban, Sparkles, SquareCheckBig, Target } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import type { GoalOption, NowBriefing, ProjectOption, TaskOption } from "../types";
+import { LoadingState, ErrorState } from "./UIFeedback";
 
 type NowScreenProps = {
   briefing: NowBriefing | null;
@@ -24,21 +25,21 @@ export function NowScreen({ briefing, error }: NowScreenProps) {
 
   if (error) {
     return (
-      <section className="route-panel" data-active="true">
-        <p className="block-label">Now</p>
-        <h1>HelpMe could not load the briefing.</h1>
-        <p>{error}</p>
-      </section>
+      <ErrorState
+        kicker="Now"
+        title="HelpMe could not load the briefing."
+        error={error}
+      />
     );
   }
 
   if (!briefing || !defaultPath) {
     return (
-      <section className="route-panel" data-active="true">
-        <p className="block-label">Now</p>
-        <h1>HelpMe is reading your operating context.</h1>
-        <p>Preparing the next useful action.</p>
-      </section>
+      <LoadingState
+        kicker="Now"
+        title="HelpMe is reading your operating context."
+        body="Preparing the next useful action."
+      />
     );
   }
 
