@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   askHelpMe,
-  completeFocusSession,
   completeTask,
   confirmProposal,
   rejectProposal,
@@ -9,7 +8,6 @@ import {
   fetchNowBriefing,
   logHabitToday,
   reopenTask,
-  startFocusSession,
   updateSettingsApi,
   createTaskApi,
   updateTaskApi,
@@ -151,15 +149,7 @@ export function App() {
     await loadAllData();
   }
 
-  async function handleStartFocus(taskId: string) {
-    await startFocusSession(taskId);
-    await loadAllData();
-  }
 
-  async function handleCompleteFocus(sessionId: string, completeTask = false) {
-    await completeFocusSession(sessionId, completeTask);
-    await loadAllData();
-  }
 
   async function handleUpdateSettings(settings: Partial<AppSettings>) {
     await updateSettingsApi(settings);
@@ -231,8 +221,6 @@ export function App() {
             onCompleteTask={handleCompleteTask}
             onReopenTask={handleReopenTask}
             onLogHabit={handleLogHabit}
-            onStartFocus={handleStartFocus}
-            onCompleteFocus={handleCompleteFocus}
             onUpdateSettings={handleUpdateSettings}
             onEditTask={handleEditTask}
             onCompleteReminder={handleCompleteReminder}

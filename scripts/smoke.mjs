@@ -370,6 +370,73 @@ async function runSmokeChecks() {
   const reminderConfirmed = await postJson(`/api/ai/proposals/${aiReminder.proposal.id}/confirm`, {});
   assert(reminderConfirmed.ok === true, "Confirm reminder proposal should return ok");
   assert(reminderConfirmed.result?.reminder_id, "Confirm reminder should return reminder_id");
+
+  // Calendar Week View & Event/Time-Block CRUD checks (optional)
+  if (!process.env.SKIP_CALENDAR || process.env.SKIP_CALENDAR !== 'true') {
+    console.log("Calendar Week View & CRUD checks...");
+    const calWeek = await getJson("/api/calendar?mode=week");
+    assert(calWeek.mode === "week", "Calendar view should return week mode");
+    assert(Array.isArray(calWeek.days), "Calendar week view should include days array");
+    assert(calWeek.days.length === 7, "Calendar week view should cover exactly 7 days");
+
+    // Create event
+    const createdEvent = await postJson("/api/calendar/events", {
+      title: "AWS Security Sync",
+      start_at: "2026-06-08T20:00:00+07:00",
+      end_at: "2026-06-08T21:00:00+07:00",
+      location: "Google Meet",
+      source: "manual"
+    });
+    assert(createdEvent.ok === true, "Create event should succeed");
+    assert(createdEvent.event?.id, "Created event should have ID");
+    const eventId = createdEvent.event.id;
+
+    // Create event conflict (overlapping the sync event)
+    const conflictingEvent = await postJsonExpectFailure("/api/calendar/events", {
+      title: "AWS Exam Prep",
+      start_at: "2026-06-08T20:30:00+07:00",
+      end_at: "2026-06-08T21:30:00+07:00"
+    });
+    assert(conflictingEvent.status === 400, "Conflicting event creation should return 400");
+    assert(/trùng khớp/i.test(conflictingEvent.body?.error || ""), "Conflicting event should return conflict error message");
+
+    // Update event
+    const updatedEvent = await requestJson(`/api/calendar/events/${eventId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "AWS Security Sync v2" })
+    });
+    assert(updatedEvent.ok === true, "Update event should succeed");
+    assert(updatedEvent.event?.title === "AWS Security Sync v2", "Updated event title should match");
+
+    // Create time block
+    const createdTimeBlock = await postJson("/api/calendar/time-blocks", {
+      title: "AWS Security Lab Block",
+      start_at: "2026-06-08T21:00:00+07:00",
+      end_at: "2026-06-08T22:00:00+07:00",
+      type: "task",
+      status: "planned"
+    });
+    assert(createdTimeBlock.ok === true, "Create time block should succeed");
+    assert(createdTimeBlock.time_block?.id, "Created time block should have ID");
+    const timeBlockId = createdTimeBlock.time_block.id;
+
+    // Create conflicting time block (overlapping the lab block)
+    const conflictingTimeBlock = await postJsonExpectFailure("/api/calendar/time-blocks", {
+      title: "Conflicting Lab Block",
+      start_at: "2026-06-08T21:30:00+07:00",
+      end_at: "2026-06-08T22:30:00+07:00"
+    });
+    assert(conflictingTimeBlock.status === 400, "Conflicting time block creation should return 400");
+    assert(/trùng khớp/i.test(conflictingTimeBlock.body?.error || ""), "Conflicting time block should return conflict error message");
+
+    // Delete event and time block
+    const deletedEvent = await requestJson(`/api/calendar/events/${eventId}`, { method: "DELETE" });
+    assert(deletedEvent.ok === true, "Delete event should succeed");
+
+    const deletedTimeBlock = await requestJson(`/api/calendar/time-blocks/${timeBlockId}`, { method: "DELETE" });
+    assert(deletedTimeBlock.ok === true, "Delete time block should succeed");
+  }
 }
 
 async function waitForHealth() {

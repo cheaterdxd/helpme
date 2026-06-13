@@ -10,7 +10,8 @@ import {
   organizeInboxIntoProposal,
   rankOpenTasks,
   createActionProposal,
-  selectTasks
+  selectTasks,
+  buildCalendarConflictValidation
 } from "../db/app-queries.mjs";
 import { runOllamaJson } from "./ollama-client.mjs";
 import { orchestrateAiCommand } from "./orchestrator.mjs";
@@ -36,16 +37,21 @@ const intentParserJsonSchema = {
         "explain_priority",
         "breakdown_task",
         "create_reminder",
+        "create_event",
+        "create_time_block",
+        "bulk_reschedule",
         "fallback"
       ]
     },
     confidence: { type: "number" },
     title: { type: "string" },
     scheduledStart: { type: "string" },
+    scheduledEnd: { type: "string" },
     estimatedMinutes: { type: "number" },
     priority: { type: "number" },
     availableStart: { type: "string" },
-    availableEnd: { type: "string" }
+    availableEnd: { type: "string" },
+    location: { type: "string" }
   },
   required: ["intent", "confidence"]
 };
@@ -61,15 +67,20 @@ const intentParserValidator = z.object({
     "explain_priority",
     "breakdown_task",
     "create_reminder",
+    "create_event",
+    "create_time_block",
+    "bulk_reschedule",
     "fallback"
   ]),
   confidence: z.number().min(0).max(1),
   title: z.string().optional().nullable(),
   scheduledStart: z.string().optional().nullable(),
+  scheduledEnd: z.string().optional().nullable(),
   estimatedMinutes: z.number().optional().nullable(),
   priority: z.number().optional().nullable(),
   availableStart: z.string().optional().nullable(),
-  availableEnd: z.string().optional().nullable()
+  availableEnd: z.string().optional().nullable(),
+  location: z.string().optional().nullable()
 });
 
 export async function handleAiCommand(rawMessage) {
@@ -103,6 +114,9 @@ async function parseIntentWithLlm(message) {
     "- explain_priority: user asks why a task is prioritized or what to do next.",
     "- breakdown_task: user wants to split, divide, or break down a task (e.g. \"chia nhỏ task học AWS\", \"breakdown task AWS\"). Extract title (the name of the task to be broken down).",
     "- create_reminder: user wants to create/set a simple reminder or notification (e.g. \"nhắc tôi uống nước sau 15 phút\", \"nhắc tôi gọi điện cho mẹ\"). Extract title and scheduledStart (the time to remind, e.g. \"2026-06-08T10:00:00+07:00\").",
+    "- create_event: user wants to add a calendar event or meeting (e.g. \"thêm sự kiện họp nhóm ngày mai 9h đến 10h\", \"tạo event meeting 14:00-15:00\"). Extract title, scheduledStart, scheduledEnd, and location if mentioned.",
+    "- create_time_block: user wants to block time for focused work (e.g. \"block 2 tiếng học AWS tối nay\", \"đặt khung giờ 20h-22h để code\"). Extract title, scheduledStart, scheduledEnd or estimatedMinutes.",
+    "- bulk_reschedule: user wants to move multiple non-urgent/unfinished tasks to another day (e.g. \"dời các task không gấp sang ngày mai\", \"chuyển hết task chưa xong sang mai\").",
     "- fallback: command is empty, unclear, or does not match any other intent.",
     "",
     `User command: "${message}"`
@@ -224,114 +238,139 @@ async function executeAiCommand({ message, normalized }) {
     };
   }
 
-  if (parsed.intent === "breakdown_task") {
-    const searchTitle = (parsed.title || "").toLowerCase().trim();
-    const allTasks = selectTasks();
-    let parentTask = null;
+  if (parsed.intent === "create_event") {
+    const title = parsed.title || "Sự kiện mới";
+    const startAt = parsed.scheduledStart || `${getTodayDate()}T20:00:00+07:00`;
+    const endAt = parsed.scheduledEnd || addMinutesIso(startAt, parsed.estimatedMinutes || 60);
+    const location = parsed.location || null;
 
-    if (searchTitle) {
-      parentTask = allTasks.find((t) => t.title.toLowerCase().includes(searchTitle) && t.status !== "done" && t.status !== "cancelled") ||
-                   allTasks.find((t) => t.title.toLowerCase().includes(searchTitle));
-    }
-
-    if (!parentTask) {
-      const focus = getTodayView().suggested_focus;
-      if (focus) {
-        parentTask = allTasks.find((t) => t.id === focus.task_id);
-      }
-    }
-
-    if (!parentTask) {
-      return readOnlyAnswer("breakdown_task", "Tôi không tìm thấy công việc nào phù hợp để chia nhỏ. Bạn hãy ghi rõ tên công việc (ví dụ: 'chia nhỏ task học AWS').", {});
-    }
-
-    let generatedSubtasks = [];
-    try {
-      const breakdownPrompt = [
-        "You are a productivity expert for HelpMe.",
-        `Break down the task "${parentTask.title}" into 3 to 6 concrete, actionable subtasks.`,
-        "For each subtask, suggest an estimated duration in minutes (between 15 and 60) and a priority (from 10 to 100).",
-        "Return JSON only conforming to the schema.",
-        "",
-        "Output Format:",
-        "{",
-        '  "subtasks": [',
-        '    { "title": "...", "estimated_minutes": 30, "priority": 55 }',
-        "  ]",
-        "}"
-      ].join("\n");
-
-      const schema = {
-        type: "object",
-        properties: {
-          subtasks: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                title: { type: "string" },
-                estimated_minutes: { type: "number" },
-                priority: { type: "number" }
-              },
-              required: ["title", "estimated_minutes", "priority"]
-            }
-          }
-        },
-        required: ["subtasks"]
-      };
-
-      const validator = z.object({
-        subtasks: z.array(
-          z.object({
-            title: z.string().trim().min(1),
-            estimated_minutes: z.number().min(5).max(120),
-            priority: z.number().min(1).max(100)
-          })
-        )
-      });
-
-      const ollamaResult = await runOllamaJson({
-        prompt: breakdownPrompt,
-        schema,
-        validator,
-        timeoutMs: 8000
-      });
-
-      if (ollamaResult.ok) {
-        generatedSubtasks = ollamaResult.value.subtasks;
-      }
-    } catch (e) {
-      // Ignore and fallback
-    }
-
-    if (!generatedSubtasks.length) {
-      generatedSubtasks = [
-        { title: "Phân tích yêu cầu và chuẩn bị tài liệu", estimated_minutes: 30, priority: 60 },
-        { title: "Thực hiện các bước cốt lõi của công việc", estimated_minutes: 60, priority: 70 },
-        { title: "Kiểm tra lại kết quả và tối ưu hóa", estimated_minutes: 30, priority: 50 }
-      ];
-    }
+    const validation = buildCalendarConflictValidation({ startAt, endAt });
+    const payload = {
+      title,
+      start_at: startAt,
+      end_at: endAt,
+      location,
+      source: "ai_generated",
+      validation
+    };
 
     const proposal = createActionProposal({
-      intent: "breakdown_task",
-      title: `Chia nhỏ task: ${parentTask.title}`,
-      summary: `Tự động chia nhỏ công việc "${parentTask.title}" thành ${generatedSubtasks.length} subtask liên kết.`,
+      intent: "create_event",
+      title: `Tạo sự kiện: ${title}`,
+      summary: validation.conflict_count > 0
+        ? `Sự kiện "${title}" trùng lịch với ${validation.conflict_count} mục khác.`
+        : `Tạo sự kiện "${title}" từ ${startAt.replace("T", " ").slice(0, 16)} đến ${endAt.replace("T", " ").slice(0, 16)}.`,
+      payload
+    });
+
+    return {
+      mode: "proposal",
+      intent: "create_event",
+      answer: validation.conflict_count > 0
+        ? `Sự kiện "${title}" trùng lịch với ${validation.conflict_count} mục khác. Hãy xác nhận nếu muốn tiếp tục.`
+        : `Tôi đã chuẩn bị đề xuất tạo sự kiện "${title}". Hãy xác nhận bên dưới.`,
+      proposal,
+      related_context: payload
+    };
+  }
+
+  if (parsed.intent === "create_time_block") {
+    const title = parsed.title || "Khung giờ tập trung";
+    const startAt = parsed.scheduledStart || `${getTodayDate()}T20:00:00+07:00`;
+    const endAt = parsed.scheduledEnd || addMinutesIso(startAt, parsed.estimatedMinutes || 60);
+
+    const validation = buildCalendarConflictValidation({ startAt, endAt });
+    const payload = {
+      title,
+      start_at: startAt,
+      end_at: endAt,
+      type: "task",
+      status: "planned",
+      validation
+    };
+
+    const proposal = createActionProposal({
+      intent: "create_time_block",
+      title: `Tạo khung giờ: ${title}`,
+      summary: validation.conflict_count > 0
+        ? `Khung giờ "${title}" trùng lịch với ${validation.conflict_count} mục khác.`
+        : `Tạo khung giờ "${title}" từ ${startAt.replace("T", " ").slice(0, 16)} đến ${endAt.replace("T", " ").slice(0, 16)}.`,
+      payload
+    });
+
+    return {
+      mode: "proposal",
+      intent: "create_time_block",
+      answer: validation.conflict_count > 0
+        ? `Khung giờ "${title}" trùng lịch với ${validation.conflict_count} mục khác. Hãy xác nhận nếu muốn tiếp tục.`
+        : `Tôi đã chuẩn bị đề xuất tạo khung giờ "${title}". Hãy xác nhận bên dưới.`,
+      proposal,
+      related_context: payload
+    };
+  }
+
+  if (parsed.intent === "bulk_reschedule") {
+    const today = getTodayDate();
+    const tomorrow = addDays(today, 1);
+    const allTasks = selectTasks();
+    const ACTIVE = ["inbox", "todo", "doing", "in_focus", "open"];
+    const todayTasks = allTasks.filter(
+      (t) => ACTIVE.includes(t.status) && (
+        (t.scheduled_start && t.scheduled_start.slice(0, 10) === today) ||
+        (t.due_at && t.due_at.slice(0, 10) === today)
+      )
+    );
+
+    // Classify: urgent = priority >= 70 or due today, non-urgent = rest
+    const urgent = [];
+    const nonUrgent = [];
+    for (const task of todayTasks) {
+      const isDueToday = task.due_at && task.due_at.slice(0, 10) === today;
+      if (task.priority >= 70 || isDueToday) {
+        urgent.push(task);
+      } else {
+        nonUrgent.push(task);
+      }
+    }
+
+    if (nonUrgent.length === 0) {
+      return readOnlyAnswer(
+        "bulk_reschedule",
+        "Không có task nào đủ điều kiện dời sang ngày mai. Tất cả task hôm nay đều khẩn cấp hoặc có deadline hôm nay.",
+        { urgent_count: urgent.length, non_urgent_count: 0 }
+      );
+    }
+
+    const rescheduleItems = nonUrgent.map((task) => ({
+      task_id: task.id,
+      title: task.title,
+      scheduled_start: `${tomorrow}T20:00:00+07:00`,
+      scheduled_end: `${tomorrow}T${minutesToTime(timeToMinutes("20:00") + (task.estimated_minutes || 30))}:00+07:00`,
+      estimated_minutes: task.estimated_minutes || 30,
+      reason: `Priority ${task.priority} — không gấp, dời sang ngày mai.`
+    }));
+
+    const proposal = createActionProposal({
+      intent: "bulk_reschedule",
+      title: `Dời ${nonUrgent.length} task không gấp sang ngày mai`,
+      summary: `Giữ lại ${urgent.length} task khẩn cấp, dời ${nonUrgent.length} task sang ${tomorrow}.`,
       payload: {
-        parent_task_id: parentTask.id,
-        new_project_title: parentTask.title,
-        subtasks: generatedSubtasks
+        keep_today: urgent.map((t) => ({ id: t.id, title: t.title, priority: t.priority })),
+        reschedule: rescheduleItems,
+        target_date: tomorrow
       }
     });
 
     return {
       mode: "proposal",
-      intent: "breakdown_task",
-      answer: `Tôi đã chuẩn bị đề xuất chia nhỏ công việc "${parentTask.title}" thành ${generatedSubtasks.length} phần việc nhỏ hơn. Hãy xác nhận bên dưới.`,
+      intent: "bulk_reschedule",
+      answer: `Tôi sẽ giữ lại ${urgent.length} task khẩn cấp và dời ${nonUrgent.length} task không gấp sang ngày mai. Hãy xác nhận bên dưới.`,
       proposal,
       related_context: {
-        parent_task_id: parentTask.id,
-        parent_task_title: parentTask.title,
-        subtasks: generatedSubtasks
+        urgent_count: urgent.length,
+        non_urgent_count: nonUrgent.length,
+        keep_today: urgent.map((t) => t.title),
+        move_tomorrow: nonUrgent.map((t) => t.title)
       }
     };
   }
@@ -441,4 +480,21 @@ function addDays(date, days) {
   const value = new Date(`${date}T00:00:00`);
   value.setDate(value.getDate() + days);
   return value.toISOString().slice(0, 10);
+}
+
+function addMinutesIso(value, minutes) {
+  const date = new Date(value);
+  date.setMinutes(date.getMinutes() + minutes);
+  return date.toISOString();
+}
+
+function timeToMinutes(value) {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + (minutes || 0);
+}
+
+function minutesToTime(value) {
+  const hours = Math.floor(value / 60);
+  const minutes = value % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }

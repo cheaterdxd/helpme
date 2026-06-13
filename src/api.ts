@@ -1,4 +1,4 @@
-import type { AppData, AskResponse, NowBriefing, AppSettings } from "./types";
+import type { AppData, AskResponse, NowBriefing, AppSettings, CalendarData } from "./types";
 
 export async function fetchNowBriefing(): Promise<NowBriefing> {
   return requestJson<NowBriefing>("/api/now", "Unable to load HelpMe briefing.");
@@ -166,6 +166,75 @@ export async function deleteReminderApi(reminderId: string): Promise<any> {
   });
 }
 
+export async function fetchCalendarApi(mode = "day", startDate?: string): Promise<CalendarData> {
+  const params = new URLSearchParams();
+  params.append("mode", mode);
+  if (startDate) {
+    params.append("start_date", startDate);
+  }
+  return requestJson<CalendarData>(`/api/calendar?${params.toString()}`, "Unable to load calendar.");
+}
+
+export async function createCalendarEventApi(event: any): Promise<any> {
+  return requestJson("/api/calendar/events", "HelpMe could not create event.", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(event)
+  });
+}
+
+export async function updateCalendarEventApi(eventId: string, event: any): Promise<any> {
+  return requestJson(`/api/calendar/events/${eventId}`, "HelpMe could not update event.", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(event)
+  });
+}
+
+export async function deleteCalendarEventApi(eventId: string): Promise<any> {
+  return requestJson(`/api/calendar/events/${eventId}`, "HelpMe could not delete event.", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({})
+  });
+}
+
+export async function createTimeBlockApi(timeBlock: any): Promise<any> {
+  return requestJson("/api/calendar/time-blocks", "HelpMe could not create time block.", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(timeBlock)
+  });
+}
+
+export async function updateTimeBlockApi(timeBlockId: string, timeBlock: any): Promise<any> {
+  return requestJson(`/api/calendar/time-blocks/${timeBlockId}`, "HelpMe could not update time block.", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(timeBlock)
+  });
+}
+
+export async function deleteTimeBlockApi(timeBlockId: string): Promise<any> {
+  return requestJson(`/api/calendar/time-blocks/${timeBlockId}`, "HelpMe could not delete time block.", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({})
+  });
+}
+
 function postEmpty<T = unknown>(url: string, errorMessage: string) {
   return requestJson<T>(url, errorMessage, {
     method: "POST",
@@ -180,6 +249,17 @@ async function requestJson<T>(url: string, errorMessage: string, init?: RequestI
   const response = await fetch(url, init);
 
   if (!response.ok) {
+    let errBody: any = null;
+    try {
+      errBody = await response.json();
+    } catch (e) {
+      // not JSON
+    }
+    if (errBody && typeof errBody === "object") {
+      const err = new Error(errBody.error || errorMessage) as any;
+      Object.assign(err, errBody);
+      throw err;
+    }
     throw new Error(errorMessage);
   }
 

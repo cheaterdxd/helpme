@@ -16,12 +16,30 @@ import {
   Target,
   Timer,
   Plus,
-  Clock
+  Clock,
+  ChevronLeft,
+  ChevronRight,
+  Edit3,
+  Trash2,
+  MapPin,
+  AlertTriangle,
+  Calendar,
+  X
 } from "lucide-react";
-import { type ReactNode, useState, type FormEvent } from "react";
+import { type ReactNode, useState, type FormEvent, useEffect } from "react";
 import { routeMeta, type Route } from "../navigation";
 import type { ApiTask, AppData, DeadlineRadar, AppSettings } from "../types";
 import { LoadingState, ErrorState, EmptyState } from "./UIFeedback";
+import {
+  fetchCalendarApi,
+  createCalendarEventApi,
+  updateCalendarEventApi,
+  deleteCalendarEventApi,
+  createTimeBlockApi,
+  updateTimeBlockApi,
+  deleteTimeBlockApi,
+  updateTaskApi
+} from "../api";
 
 type SecondaryRoute = Exclude<Route, "now">;
 
@@ -33,8 +51,6 @@ type RoutePanelProps = {
   onCompleteTask: (taskId: string) => Promise<void>;
   onReopenTask: (taskId: string) => Promise<void>;
   onLogHabit: (habitId: string) => Promise<void>;
-  onStartFocus: (taskId: string) => Promise<void>;
-  onCompleteFocus: (sessionId: string, completeTask?: boolean) => Promise<void>;
   onUpdateSettings: (settings: Partial<AppSettings>) => Promise<void>;
   onEditTask: (task: ApiTask | null) => void;
   onCompleteReminder: (reminderId: string) => Promise<void>;
@@ -49,8 +65,6 @@ export function RoutePanel({
   onCompleteTask,
   onReopenTask,
   onLogHabit,
-  onStartFocus,
-  onCompleteFocus,
   onUpdateSettings,
   onEditTask,
   onCompleteReminder,
@@ -82,8 +96,6 @@ export function RoutePanel({
         data={data}
         onCommand={onCommand}
         onCompleteTask={onCompleteTask}
-        onStartFocus={onStartFocus}
-        onCompleteFocus={onCompleteFocus}
         onEditTask={onEditTask}
         onCompleteReminder={onCompleteReminder}
         onSnoozeReminder={onSnoozeReminder}
@@ -91,7 +103,7 @@ export function RoutePanel({
     );
   }
   if (route === "inbox") return <InboxView data={data} onCommand={onCommand} onEditTask={onEditTask} />;
-  if (route === "calendar") return <CalendarView data={data} onCommand={onCommand} />;
+  if (route === "calendar") return <CalendarView data={data} onCommand={onCommand} onEditTask={onEditTask} />;
   if (route === "deadlines") return <DeadlinesView radar={data.deadlines} />;
   if (route === "goals") return <GoalsView data={data} />;
   if (route === "habits") return <HabitsView data={data} onLogHabit={onLogHabit} />;
@@ -103,8 +115,6 @@ function TodayView({
   data,
   onCommand,
   onCompleteTask,
-  onStartFocus,
-  onCompleteFocus,
   onEditTask,
   onCompleteReminder,
   onSnoozeReminder
@@ -112,8 +122,6 @@ function TodayView({
   data: AppData;
   onCommand: (message: string) => Promise<void>;
   onCompleteTask: (taskId: string) => Promise<void>;
-  onStartFocus: (taskId: string) => Promise<void>;
-  onCompleteFocus: (sessionId: string, completeTask?: boolean) => Promise<void>;
   onEditTask: (task: ApiTask | null) => void;
   onCompleteReminder: (reminderId: string) => Promise<void>;
   onSnoozeReminder: (reminderId: string, minutes?: number) => Promise<void>;
@@ -220,61 +228,9 @@ function TodayView({
         <Metric label="Free" value={`${Math.round(data.today.summary.available_minutes / 60)}h`} />
       </div>
 
-      {data.today.focus_session && (
-        <section className="focus-band" data-mode="active">
-          <div className="focus-band-icon">
-            <Timer aria-hidden="true" size={20} />
-          </div>
-          <div>
-            <p className="block-label">In focus</p>
-            <h2>{data.today.focus_session.title}</h2>
-            <p>
-              {formatTime(data.today.focus_session.start_at ?? "")} start
-              {data.today.focus_session.project_title ? ` - ${data.today.focus_session.project_title}` : ""}
-            </p>
-          </div>
-          <div className="focus-actions">
-            <span>{data.today.focus_session.duration_minutes}m</span>
-            <button type="button" onClick={() => void onCompleteFocus(data.today.focus_session!.id)}>
-              <CheckCircle2 aria-hidden="true" size={15} />
-              <span>End</span>
-            </button>
-            <button type="button" onClick={() => void onCompleteFocus(data.today.focus_session!.id, true)}>
-              <CheckCircle2 aria-hidden="true" size={15} />
-              <span>Done</span>
-            </button>
-          </div>
-        </section>
-      )}
-
       {data.today.suggested_focus && (
-        <section className="focus-band">
-          <div className="focus-band-icon">
-            <Sparkles aria-hidden="true" size={20} />
-          </div>
+        <section className="os-section" style={{ marginTop: "16px" }}>
           <div>
-            <p className="block-label">Suggested focus</p>
-            <h2>{data.today.suggested_focus.title}</h2>
-            <p>{data.today.suggested_focus.reason}</p>
-          </div>
-          <div className="focus-actions">
-            <span>{data.today.suggested_focus.duration_minutes}m</span>
-            <button type="button" onClick={() => void onStartFocus(data.today.suggested_focus!.task_id)}>
-              <Play aria-hidden="true" size={15} />
-              <span>Start</span>
-            </button>
-            <button type="button" onClick={() => void onCompleteTask(data.today.suggested_focus!.task_id)}>
-              <CheckCircle2 aria-hidden="true" size={15} />
-              <span>Done</span>
-            </button>
-          </div>
-        </section>
-      )}
-
-      {data.today.suggested_focus && (
-        <section className="planner-card" aria-label="Planner reasoning">
-          <div>
-            <p className="block-label">Planner score</p>
             <h2>{data.today.suggested_focus.score}</h2>
             <p>{data.today.suggested_focus.risk_summary}</p>
           </div>
@@ -386,45 +342,952 @@ function InboxView({
   );
 }
 
-function CalendarView({ data, onCommand }: { data: AppData; onCommand: (message: string) => Promise<void> }) {
-  const items = [
-    ...data.calendar.time_blocks.map((block) => ({
-      id: block.id,
-      title: block.title,
-      start: block.start_at,
-      end: block.end_at,
-      meta: block.type
-    })),
-    ...data.calendar.events.map((event) => ({
-      id: event.id,
-      title: event.title,
-      start: event.start_at,
-      end: event.end_at,
-      meta: event.source
-    }))
-  ].sort((a, b) => a.start.localeCompare(b.start));
+function CalendarView({
+  data,
+  onCommand,
+  onEditTask
+}: {
+  data: AppData;
+  onCommand: (message: string) => Promise<void>;
+  onEditTask: (task: ApiTask | null) => void;
+}) {
+  const [mode, setMode] = useState<"day" | "week">("day");
+  const [startDate, setStartDate] = useState(data.today.date || new Date().toISOString().slice(0, 10));
+  const [calendarData, setCalendarData] = useState<any>(data.calendar);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalType, setModalType] = useState<"event" | "time-block">("event");
+  const [editingItem, setEditingItem] = useState<any | null>(null);
+  const [taskPickerWindow, setTaskPickerWindow] = useState<any | null>(null);
+
+  // Load calendar data when mode or startDate changes
+  const loadCalendar = async (currentMode = mode, currentStartDate = startDate) => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetchCalendarApi(currentMode, currentStartDate);
+      setCalendarData(res);
+    } catch (err: any) {
+      setError(err.message || "Failed to load calendar.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (startDate === data.today.date && mode === "day") {
+      setCalendarData(data.calendar);
+    }
+  }, [data.calendar, data.today.date]);
+
+  const handleNavigate = (direction: "prev" | "next" | "today") => {
+    let nextDate = startDate;
+    if (direction === "today") {
+      nextDate = data.today.date || new Date().toISOString().slice(0, 10);
+    } else {
+      const offset = mode === "week" ? 7 : 1;
+      const date = new Date(`${startDate}T00:00:00`);
+      date.setDate(date.getDate() + (direction === "next" ? offset : -offset));
+      nextDate = date.toISOString().slice(0, 10);
+    }
+    setStartDate(nextDate);
+    void loadCalendar(mode, nextDate);
+  };
+
+  const handleModeChange = (newMode: "day" | "week") => {
+    setMode(newMode);
+    void loadCalendar(newMode, startDate);
+  };
+
+  const handleSaveModalItem = async (itemPayload: any) => {
+    try {
+      if (modalType === "event") {
+        if (editingItem && editingItem.id) {
+          await updateCalendarEventApi(editingItem.id, itemPayload);
+        } else {
+          await createCalendarEventApi(itemPayload);
+        }
+      } else {
+        if (editingItem && editingItem.id) {
+          await updateTimeBlockApi(editingItem.id, itemPayload);
+        } else {
+          await createTimeBlockApi(itemPayload);
+        }
+      }
+      setModalOpen(false);
+      void loadCalendar();
+    } catch (err: any) {
+      throw err; // Propagate to modal to show validation/conflict error
+    }
+  };
+
+  const handleDeleteModalItem = async (itemId: string) => {
+    try {
+      if (modalType === "event") {
+        await deleteCalendarEventApi(itemId);
+      } else {
+        await deleteTimeBlockApi(itemId);
+      }
+      setModalOpen(false);
+      void loadCalendar();
+    } catch (err: any) {
+      alert(err.message || "Failed to delete item.");
+    }
+  };
+
+  const openCreateModal = (type: "event" | "time-block", presetStart?: string) => {
+    setModalType(type);
+    setEditingItem(presetStart ? { start_at: presetStart } : null);
+    setModalOpen(true);
+  };
+
+  const openEditModal = (item: any, type: "event" | "time-block") => {
+    setModalType(type);
+    setEditingItem(item);
+    setModalOpen(true);
+  };
+
+  // Build items list for Day View
+  const dayItems = calendarData && calendarData.mode === "day"
+    ? [
+        ...(calendarData.time_blocks || []).map((tb: any) => ({ ...tb, itemType: "time-block" as const })),
+        ...(calendarData.events || []).map((ev: any) => ({ ...ev, itemType: "event" as const }))
+      ].sort((a, b) => a.start_at.localeCompare(b.start_at))
+    : [];
+
+  const allTasks = [...(data.tasks.open || []), ...(data.tasks.inbox || [])];
+  const unscheduledTasks = allTasks.filter((t) => !t.scheduled_start && t.status !== "done" && t.status !== "cancelled");
+
+  const handleScheduleTaskIntoWindow = async (task: ApiTask, win: any) => {
+    try {
+      const endDate = new Date(win.start);
+      endDate.setMinutes(endDate.getMinutes() + (task.estimated_minutes || 30));
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const endAt = `${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())}T${pad(endDate.getHours())}:${pad(endDate.getMinutes())}:00+07:00`;
+      await updateTaskApi(task.id, {
+        scheduled_start: win.start,
+        scheduled_end: endAt
+      });
+      setTaskPickerWindow(null);
+      void loadCalendar();
+    } catch (err: any) {
+      alert(err.message || "Failed to schedule task.");
+    }
+  };
 
   return (
     <section className="os-view" aria-label="Calendar">
       <ViewHeader
         icon={<CalendarDays aria-hidden="true" size={20} />}
         kicker="Calendar"
-        title="Time blocks for the current day"
-        body="Calendar shows the plan HelpMe can validate before writing changes."
+        title="Personal scheduling surface"
+        body="Calendar shows your daily plan and lets you manage events and focus time blocks."
         actionLabel="Re-plan"
         onAction={() => onCommand("Hom nay toi ranh tu 20h den 23h, sap lich giup toi")}
       />
 
-      <div className="calendar-rail">
-        {items.map((item) => (
-          <div className="time-card" key={item.id}>
-            <span>{formatTime(item.start)}</span>
-            <strong>{item.title}</strong>
-            <small>{formatDuration(item.start, item.end)} · {item.meta}</small>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button
+            type="button"
+            className="row-action"
+            onClick={() => handleNavigate("prev")}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "32px", height: "32px", padding: 0 }}
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <button
+            type="button"
+            className="row-action"
+            onClick={() => handleNavigate("today")}
+            style={{ padding: "6px 12px", fontSize: "13px" }}
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            className="row-action"
+            onClick={() => handleNavigate("next")}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "32px", height: "32px", padding: 0 }}
+          >
+            <ChevronRight size={16} />
+          </button>
+          <span style={{ fontSize: "14px", fontWeight: 600, marginLeft: "8px" }}>
+            {mode === "day"
+              ? new Date(`${startDate}T00:00:00`).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
+              : `Week of ${new Date(`${startDate}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
+          </span>
+        </div>
+
+        <div style={{ display: "flex", gap: "8px" }}>
+          <div style={{ display: "flex", border: "1px solid var(--line)", borderRadius: "var(--radius)", padding: "2px", background: "var(--panel)" }}>
+            <button
+              type="button"
+              onClick={() => handleModeChange("day")}
+              style={{
+                background: mode === "day" ? "var(--bg)" : "none",
+                border: "none",
+                borderRadius: "calc(var(--radius) - 2px)",
+                padding: "4px 12px",
+                fontSize: "12px",
+                fontWeight: mode === "day" ? 600 : 500,
+                cursor: "pointer",
+                color: mode === "day" ? "var(--text)" : "var(--muted)"
+              }}
+            >
+              Day
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeChange("week")}
+              style={{
+                background: mode === "week" ? "var(--bg)" : "none",
+                border: "none",
+                borderRadius: "calc(var(--radius) - 2px)",
+                padding: "4px 12px",
+                fontSize: "12px",
+                fontWeight: mode === "week" ? 600 : 500,
+                cursor: "pointer",
+                color: mode === "week" ? "var(--text)" : "var(--muted)"
+              }}
+            >
+              Week
+            </button>
           </div>
-        ))}
+
+          <button
+            type="button"
+            className="row-action"
+            onClick={() => openCreateModal("event")}
+            style={{ display: "flex", alignItems: "center", gap: "4px", padding: "6px 12px", fontSize: "13px" }}
+          >
+            <Plus size={14} />
+            <span>Event</span>
+          </button>
+          <button
+            type="button"
+            className="row-action"
+            onClick={() => openCreateModal("time-block")}
+            style={{ display: "flex", alignItems: "center", gap: "4px", padding: "6px 12px", fontSize: "13px" }}
+          >
+            <Plus size={14} />
+            <span>Block</span>
+          </button>
+        </div>
       </div>
+
+      {loading && (
+        <div style={{ color: "var(--muted)", fontSize: "13px", margin: "8px 0" }}>
+          Loading calendar...
+        </div>
+      )}
+      {error && (
+        <div className="settings-alert-error" style={{ margin: "8px 0" }}>
+          {error}
+        </div>
+      )}
+
+      {/* Day View */}
+      {calendarData && calendarData.mode === "day" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "16px" }}>
+          {dayItems.map((item) => (
+            <div
+              key={item.id}
+              style={{
+                background: "var(--panel)",
+                border: "1px solid var(--line)",
+                borderRadius: "var(--radius)",
+                padding: "16px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                cursor: "pointer",
+                position: "relative"
+              }}
+              onClick={() => openEditModal(item, item.itemType)}
+            >
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: item.itemType === "event" ? "var(--accent)" : "rgb(245, 158, 11)",
+                      backgroundColor: item.itemType === "event" ? "rgba(33, 47, 39, 0.05)" : "rgba(245, 158, 11, 0.1)",
+                      padding: "2px 6px",
+                      borderRadius: "4px"
+                    }}
+                  >
+                    {item.itemType === "event" ? "Event" : "Block"}
+                  </span>
+                  <strong style={{ fontSize: "15px" }}>{item.title}</strong>
+                </div>
+                <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "var(--muted)" }}>
+                  {formatTime(item.start_at)} - {formatTime(item.end_at)} ({formatDuration(item.start_at, item.end_at)})
+                  {item.location && ` · 📍 ${item.location}`}
+                  {item.type && item.type !== "task" && ` · ${item.type}`}
+                  {item.status && ` · status: ${item.status}`}
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: "8px" }} onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  className="row-action"
+                  onClick={() => openEditModal(item, item.itemType)}
+                  style={{ padding: "6px" }}
+                >
+                  <Edit3 size={14} />
+                </button>
+                <button
+                  type="button"
+                  className="row-action"
+                  onClick={() => void handleDeleteModalItem(item.id)}
+                  style={{ padding: "6px", color: "#c81e1e" }}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {dayItems.length === 0 && (
+            <EmptyState title="No items scheduled" message="Add an event or a time block to start planning." />
+          )}
+
+          {calendarData.free_windows && calendarData.free_windows.length > 0 && (
+            <section style={{ marginTop: "24px" }}>
+              <h3 style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", marginBottom: "12px" }}>Available Windows</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "10px" }}>
+                {calendarData.free_windows.map((win: any) => (
+                  <div
+                    key={win.id}
+                    style={{
+                      border: "1px dashed var(--line)",
+                      borderRadius: "var(--radius)",
+                      padding: "12px",
+                      backgroundColor: "rgba(33, 47, 39, 0.02)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "8px"
+                    }}
+                  >
+                    <div>
+                      <strong style={{ fontSize: "13px" }}>{win.label}</strong>
+                      <p style={{ margin: "2px 0 0 0", fontSize: "12px", color: "var(--muted)" }}>
+                        {formatTime(win.start)} - {formatTime(win.end)} ({win.minutes}m)
+                      </p>
+                    </div>
+                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        className="row-action"
+                        style={{ fontSize: "11px", padding: "4px 8px" }}
+                        onClick={() => openCreateModal("time-block", win.start)}
+                      >
+                        + Block
+                      </button>
+                      <button
+                        type="button"
+                        className="row-action"
+                        style={{ fontSize: "11px", padding: "4px 8px" }}
+                        onClick={() => onEditTask({ scheduled_start: win.start } as any)}
+                      >
+                        + New Task
+                      </button>
+                      <button
+                        type="button"
+                        className="row-action"
+                        style={{ fontSize: "11px", padding: "4px 8px", color: "var(--accent)" }}
+                        onClick={() => setTaskPickerWindow(taskPickerWindow?.id === win.id ? null : win)}
+                      >
+                        ⚡ Schedule
+                      </button>
+                    </div>
+                    {taskPickerWindow?.id === win.id && (
+                      <div style={{
+                        marginTop: "8px",
+                        border: "1px solid var(--line)",
+                        borderRadius: "var(--radius)",
+                        background: "var(--bg)",
+                        maxHeight: "200px",
+                        overflowY: "auto",
+                        padding: "4px"
+                      }}>
+                        {unscheduledTasks.length === 0 ? (
+                          <p style={{ fontSize: "12px", color: "var(--muted)", padding: "8px", margin: 0, textAlign: "center" }}>
+                            No unscheduled tasks
+                          </p>
+                        ) : (
+                          unscheduledTasks.map((task) => (
+                            <button
+                              key={task.id}
+                              type="button"
+                              style={{
+                                width: "100%",
+                                textAlign: "left",
+                                background: "none",
+                                border: "none",
+                                padding: "8px",
+                                cursor: "pointer",
+                                borderRadius: "4px",
+                                fontSize: "12px",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                color: "var(--text)"
+                              }}
+                              onMouseOver={(e) => (e.currentTarget.style.background = "var(--panel)")}
+                              onMouseOut={(e) => (e.currentTarget.style.background = "none")}
+                              onClick={() => void handleScheduleTaskIntoWindow(task, win)}
+                            >
+                              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                                {task.title}
+                              </span>
+                              <span style={{ color: "var(--muted)", fontSize: "10px", marginLeft: "8px", flexShrink: 0 }}>
+                                {task.estimated_minutes ?? 30}m
+                              </span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      )}
+
+      {/* Week View */}
+      {calendarData && calendarData.mode === "week" && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+            gap: "12px",
+            marginTop: "16px"
+          }}
+        >
+          {(calendarData.days || []).map((day: any) => {
+            const dayDate = new Date(`${day.date}T00:00:00`);
+            const dayLabel = dayDate.toLocaleDateString("en-US", { weekday: "short", day: "numeric" });
+            const dayItems = [
+              ...(day.time_blocks || []).map((tb: any) => ({ ...tb, itemType: "time-block" as const })),
+              ...(day.events || []).map((ev: any) => ({ ...ev, itemType: "event" as const }))
+            ].sort((a, b) => a.start_at.localeCompare(b.start_at));
+
+            return (
+              <div
+                key={day.date}
+                style={{
+                  background: "var(--panel)",
+                  border: "1px solid var(--line)",
+                  borderRadius: "var(--radius)",
+                  padding: "12px",
+                  display: "flex",
+                  flexDirection: "column",
+                  minHeight: "280px"
+                }}
+              >
+                <header
+                  style={{
+                    borderBottom: "1px solid var(--line)",
+                    paddingBottom: "8px",
+                    marginBottom: "8px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center"
+                  }}
+                >
+                  <button
+                    type="button"
+                    style={{
+                      background: "none",
+                      border: "none",
+                      fontWeight: 700,
+                      fontSize: "13px",
+                      cursor: "pointer",
+                      padding: 0,
+                      color: "var(--text)"
+                    }}
+                    onClick={() => {
+                      setStartDate(day.date);
+                      setMode("day");
+                      void loadCalendar("day", day.date);
+                    }}
+                  >
+                    {dayLabel}
+                  </button>
+                  <button
+                    type="button"
+                    className="row-action"
+                    style={{ padding: "2px 4px", fontSize: "10px" }}
+                    onClick={() => openCreateModal("event", `${day.date}T20:00:00+07:00`)}
+                  >
+                    +
+                  </button>
+                </header>
+
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "6px", overflowY: "auto", maxHeight: "180px" }}>
+                  {dayItems.map((item) => (
+                    <div
+                      key={item.id}
+                      style={{
+                        background: item.itemType === "event" ? "rgba(33, 47, 39, 0.03)" : "rgba(245, 158, 11, 0.05)",
+                        borderLeft: `3px solid ${item.itemType === "event" ? "var(--accent)" : "rgb(245, 158, 11)"}`,
+                        padding: "4px 6px",
+                        borderRadius: "2px",
+                        fontSize: "11px",
+                        cursor: "pointer"
+                      }}
+                      onClick={() => openEditModal(item, item.itemType)}
+                    >
+                      <div style={{ fontWeight: 600, textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>
+                        {item.title}
+                      </div>
+                      <div style={{ color: "var(--muted)", fontSize: "10px" }}>
+                        {formatTime(item.start_at)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {day.free_windows && day.free_windows.length > 0 && (
+                  <div
+                    style={{
+                      marginTop: "8px",
+                      borderTop: "1px dashed var(--line)",
+                      paddingTop: "8px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "4px"
+                    }}
+                  >
+                    {day.free_windows.slice(0, 2).map((win: any) => (
+                      <div
+                        key={win.id}
+                        style={{
+                          fontSize: "10px",
+                          color: "var(--muted)",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center"
+                        }}
+                      >
+                        <span style={{ textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>
+                          Free {formatTime(win.start)}
+                        </span>
+                        <button
+                          type="button"
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "var(--accent)",
+                            fontSize: "9px",
+                            cursor: "pointer",
+                            padding: "0 2px"
+                          }}
+                          onClick={() => onEditTask({ scheduled_start: win.start } as any)}
+                        >
+                          +Task
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Calendar Item Creator/Editor Modal */}
+      <CalendarItemModal
+        isOpen={modalOpen}
+        type={modalType}
+        item={editingItem}
+        tasks={allTasks}
+        onClose={() => setModalOpen(false)}
+        onSave={handleSaveModalItem}
+        onDelete={editingItem && editingItem.id ? handleDeleteModalItem : undefined}
+      />
     </section>
+  );
+}
+
+type CalendarItemModalProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (payload: any) => Promise<void>;
+  onDelete?: (id: string) => Promise<void>;
+  item: any | null;
+  type: "event" | "time-block";
+  tasks: ApiTask[];
+};
+
+function CalendarItemModal({
+  isOpen,
+  onClose,
+  onSave,
+  onDelete,
+  item,
+  type,
+  tasks
+}: CalendarItemModalProps) {
+  const [title, setTitle] = useState("");
+  const [startAt, setStartAt] = useState("");
+  const [endAt, setEndAt] = useState("");
+  const [location, setLocation] = useState("");
+  const [source, setSource] = useState("manual");
+  const [blockType, setBlockType] = useState("task");
+  const [status, setStatus] = useState("planned");
+  const [taskId, setTaskId] = useState("");
+
+  const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [conflicts, setConflicts] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (item) {
+        setTitle(item.title || "");
+        setStartAt(item.start_at ? item.start_at.slice(0, 16) : "");
+        if (item.end_at) {
+          setEndAt(item.end_at.slice(0, 16));
+        } else if (item.start_at) {
+          const date = new Date(item.start_at.slice(0, 19));
+          date.setHours(date.getHours() + 1);
+          const pad = (num: number) => String(num).padStart(2, "0");
+          setEndAt(`${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`);
+        } else {
+          setEndAt("");
+        }
+        setLocation(item.location || "");
+        setSource(item.source || "manual");
+        setBlockType(item.type || "task");
+        setStatus(item.status || "planned");
+        setTaskId(item.task_id || "");
+      } else {
+        setTitle("");
+        const todayStr = new Date().toISOString().slice(0, 10);
+        setStartAt(`${todayStr}T20:00`);
+        setEndAt(`${todayStr}T21:00`);
+        setLocation("");
+        setSource("manual");
+        setBlockType("task");
+        setStatus("planned");
+        setTaskId("");
+      }
+      setErrorMsg("");
+      setConflicts([]);
+    }
+  }, [isOpen, item]);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setErrorMsg("");
+    setConflicts([]);
+
+    const startIso = `${startAt}:00+07:00`;
+    const endIso = `${endAt}:00+07:00`;
+
+    const payload: any = {
+      title,
+      start_at: startIso,
+      end_at: endIso
+    };
+
+    if (type === "event") {
+      payload.location = location || null;
+      payload.source = source;
+    } else {
+      payload.type = blockType;
+      payload.status = status;
+      payload.task_id = taskId || null;
+    }
+
+    try {
+      await onSave(payload);
+    } catch (err: any) {
+      if (err.validation?.conflicts) {
+        setConflicts(err.validation.conflicts);
+        setErrorMsg("Lịch trình bị trùng khớp với sự kiện khác.");
+      } else {
+        setErrorMsg(err.message || "Không thể lưu.");
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(33, 47, 39, 0.4)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 2000,
+        padding: "16px",
+        backdropFilter: "blur(4px)"
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: "var(--bg)",
+          border: "1px solid var(--line)",
+          borderRadius: "var(--radius)",
+          maxWidth: "480px",
+          width: "100%",
+          maxHeight: "calc(100vh - 40px)",
+          overflowY: "auto",
+          boxShadow: "0 20px 40px rgba(33, 47, 39, 0.08)",
+          display: "flex",
+          flexDirection: "column",
+          padding: "24px"
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "20px"
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <CalendarDays size={20} style={{ color: "var(--accent)" }} />
+            <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 700 }}>
+              {item && item.id ? `Chỉnh sửa ${type === "event" ? "sự kiện" : "khung giờ"}` : `Thêm ${type === "event" ? "sự kiện mới" : "khung giờ mới"}`}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--muted)",
+              padding: "4px"
+            }}
+          >
+            <X size={20} />
+          </button>
+        </header>
+
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {errorMsg && (
+            <div className="settings-alert-error" style={{ marginBottom: "0px", display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 600 }}>
+                <AlertTriangle size={16} />
+                <span>{errorMsg}</span>
+              </div>
+              {conflicts.length > 0 && (
+                <div style={{ marginTop: "4px", paddingLeft: "22px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                  {conflicts.map((c, i) => (
+                    <small key={i} style={{ display: "block" }}>
+                      • {c.title} ({c.start?.slice(11, 16) || c.start_at?.slice(11, 16)} - {c.end?.slice(11, 16) || c.end_at?.slice(11, 16)})
+                    </small>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="settings-form-group">
+            <label>Tiêu đề</label>
+            <input
+              type="text"
+              className="settings-input"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+              placeholder={type === "event" ? "Họp AWS..." : "Khung giờ học bài..."}
+            />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+            <div className="settings-form-group">
+              <label>Thời gian bắt đầu</label>
+              <input
+                type="datetime-local"
+                className="settings-input"
+                value={startAt}
+                onChange={(e) => setStartAt(e.target.value)}
+                required
+              />
+            </div>
+            <div className="settings-form-group">
+              <label>Thời gian kết thúc</label>
+              <input
+                type="datetime-local"
+                className="settings-input"
+                value={endAt}
+                onChange={(e) => setEndAt(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+
+          {type === "event" ? (
+            <>
+              <div className="settings-form-group">
+                <label>Địa điểm / Link họp</label>
+                <input
+                  type="text"
+                  className="settings-input"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="e.g. Google Meet, Văn phòng..."
+                />
+              </div>
+              <div className="settings-form-group">
+                <label>Nguồn (Source)</label>
+                <input
+                  type="text"
+                  className="settings-input"
+                  value={source}
+                  onChange={(e) => setSource(e.target.value)}
+                  placeholder="manual"
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                <div className="settings-form-group">
+                  <label>Loại (Type)</label>
+                  <select
+                    className="settings-input"
+                    value={blockType}
+                    onChange={(e) => setBlockType(e.target.value)}
+                  >
+                    <option value="task">Task</option>
+                    <option value="break">Break</option>
+                    <option value="personal">Personal</option>
+                  </select>
+                </div>
+                <div className="settings-form-group">
+                  <label>Trạng thái (Status)</label>
+                  <select
+                    className="settings-input"
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                  >
+                    <option value="planned">Planned</option>
+                    <option value="locked">Locked</option>
+                    <option value="completed">Completed</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="settings-form-group">
+                <label>Liên kết công việc (Task)</label>
+                <select
+                  className="settings-input"
+                  value={taskId}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setTaskId(id);
+                    if (!title) {
+                      const t = tasks.find((item) => item.id === id);
+                      if (t) setTitle(t.title);
+                    }
+                  }}
+                >
+                  <option value="">(Không liên kết)</option>
+                  {tasks.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.title} (P{t.priority})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
+
+          <footer
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginTop: "12px",
+              gap: "12px"
+            }}
+          >
+            {item && item.id && onDelete ? (
+              <button
+                type="button"
+                className="row-action"
+                style={{
+                  background: "#fdf2f2",
+                  color: "#c81e1e",
+                  border: "1px solid #fde8e8",
+                  padding: "8px 16px",
+                  borderRadius: "var(--radius)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  cursor: "pointer"
+                }}
+                onClick={() => {
+                  if (confirm(`Bạn chắc chắn muốn xóa mục này?`)) {
+                    void onDelete(item.id);
+                  }
+                }}
+                disabled={saving}
+              >
+                <Trash2 size={16} />
+                <span>Xóa bỏ</span>
+              </button>
+            ) : (
+              <div />
+            )}
+
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button
+                type="button"
+                onClick={onClose}
+                className="row-action"
+                style={{
+                  background: "var(--panel)",
+                  border: "1px solid var(--line)",
+                  padding: "8px 16px",
+                  borderRadius: "var(--radius)",
+                  cursor: "pointer"
+                }}
+                disabled={saving}
+              >
+                Đóng
+              </button>
+
+              <button
+                type="submit"
+                className="settings-save-btn"
+                style={{ margin: 0, alignSelf: "unset" }}
+                disabled={saving}
+              >
+                {saving ? "Đang lưu..." : "Lưu lại"}
+              </button>
+            </div>
+          </footer>
+        </form>
+      </div>
+    </div>
   );
 }
 

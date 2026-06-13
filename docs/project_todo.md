@@ -173,11 +173,11 @@ Note: Parts 1-9 were completed before the release rule was made strict, so some 
   - Commit: 1e5b9a1
   - Verified: db:reset, check, build, smoke
 
-- [ ] Part 25 - Calendar & Time Blocking v2
+- [x] Part 25 - Calendar & Time Blocking v2
   - Goal: add practical day/week calendar views, event/time-block APIs, and LLM-backed event/time-block proposals.
-  - Release:
-  - Commit:
-  - Verified:
+  - Release: 2026-06-13
+  - Commit: b972498
+  - Verified: check, build
 
 - [ ] Part 26 - Deadline Workflows v2
   - Goal: add deadline CRUD, linking, LLM deadline extraction/explanation, reminders, and deterministic date buckets.

@@ -99,20 +99,44 @@ export function getTaskCollections() {
   };
 }
 
-export function getCalendarView() {
-  const today = getTodayDate();
-  const start = getSetting("working_window_start", "20:00");
-  const end = getSetting("working_window_end", "23:00");
+export function getCalendarView(mode = "day", startDate) {
+  const startDay = startDate || getTodayDate();
+  const startSetting = getSetting("working_window_start", "20:00");
+  const endSetting = getSetting("working_window_end", "23:00");
 
+  if (mode === "week") {
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const date = addDays(startDay, i);
+      days.push({
+        date,
+        events: selectCalendarEventsForDate(date),
+        time_blocks: selectTimeBlocksForDate(date),
+        free_windows: buildFreeWindows({
+          date,
+          availableStart: startSetting,
+          availableEnd: endSetting,
+          includeTimeBlocks: true
+        })
+      });
+    }
+    return {
+      mode: "week",
+      start_date: startDay,
+      days
+    };
+  }
+
+  // default to day mode
   return {
     mode: "day",
-    date: today,
-    events: selectCalendarEventsForDate(today),
-    time_blocks: selectTimeBlocksForDate(today),
+    date: startDay,
+    events: selectCalendarEventsForDate(startDay),
+    time_blocks: selectTimeBlocksForDate(startDay),
     free_windows: buildFreeWindows({
-      date: today,
-      availableStart: start,
-      availableEnd: end,
+      date: startDay,
+      availableStart: startSetting,
+      availableEnd: endSetting,
       includeTimeBlocks: true
     })
   };
@@ -975,6 +999,69 @@ function applyProposal(intent, payload) {
     return { rescheduled_tasks: normalizedItems.length, validation: payload.validation ?? null };
   }
 
+  if (intent === "create_event") {
+    const validation = buildCalendarConflictValidation({
+      startAt: payload.start_at,
+      endAt: payload.end_at
+    });
+    if (validation.conflict_count > 0) {
+      throw new Error(`Event has ${validation.conflict_count} calendar conflict${validation.conflict_count === 1 ? "" : "s"}.`);
+    }
+
+    const result = createCalendarEvent({
+      title: payload.title,
+      start_at: payload.start_at,
+      end_at: payload.end_at,
+      location: payload.location ?? null,
+      source: payload.source ?? "ai_generated"
+    });
+
+    if (!result.ok) {
+      throw new Error(result.error || "Failed to create event.");
+    }
+    return { event_id: result.event.id };
+  }
+
+  if (intent === "create_time_block") {
+    const validation = buildCalendarConflictValidation({
+      startAt: payload.start_at,
+      endAt: payload.end_at
+    });
+    if (validation.conflict_count > 0) {
+      throw new Error(`Time block has ${validation.conflict_count} calendar conflict${validation.conflict_count === 1 ? "" : "s"}.`);
+    }
+
+    const result = createTimeBlock({
+      title: payload.title,
+      start_at: payload.start_at,
+      end_at: payload.end_at,
+      type: payload.type ?? "task",
+      status: payload.status ?? "planned"
+    });
+
+    if (!result.ok) {
+      throw new Error(result.error || "Failed to create time block.");
+    }
+    return { time_block_id: result.time_block.id };
+  }
+
+  if (intent === "bulk_reschedule") {
+    const now = new Date().toISOString();
+    const items = Array.isArray(payload.reschedule) ? payload.reschedule : [];
+    let moved = 0;
+
+    for (const item of items) {
+      if (!item.task_id || !item.scheduled_start) continue;
+      const scheduledEnd = item.scheduled_end ?? addMinutesIso(item.scheduled_start, item.estimated_minutes ?? 30);
+      sqlite
+        .prepare("UPDATE tasks SET scheduled_start = ?, scheduled_end = ?, updated_at = ? WHERE id = ?")
+        .run(item.scheduled_start, scheduledEnd, now, item.task_id);
+      moved++;
+    }
+
+    return { rescheduled_tasks: moved, target_date: payload.target_date };
+  }
+
   return { ignored: true };
 }
 
@@ -1704,6 +1791,12 @@ function toLocalIsoString(date) {
   return localTime.toISOString().replace(/\.\d{3}Z$/, "+07:00").replace(/Z$/, "+07:00");
 }
 
+function addMinutesIso(value, minutes) {
+  const date = new Date(value);
+  date.setMinutes(date.getMinutes() + minutes);
+  return toLocalIsoString(date);
+}
+
 export function snoozeReminder(reminderId, minutes = 15) {
   const existing = sqlite.prepare("SELECT * FROM reminders WHERE id = ?").get(reminderId);
   if (!existing) {
@@ -1716,4 +1809,174 @@ export function snoozeReminder(reminderId, minutes = 15) {
   const remindAt = toLocalIsoString(date);
 
   return updateReminder(reminderId, { remind_at: remindAt, status: "snoozed" });
+}
+
+export function buildCalendarConflictValidation({ startAt, endAt, ignoreEventId = null, ignoreTimeBlockId = null }) {
+  if (!startAt || !endAt) return { conflict_count: 0, conflicts: [] };
+
+  const date = startAt.slice(0, 10);
+  const events = selectCalendarEventsForDate(date).filter((e) => e.id !== ignoreEventId);
+  const timeBlocks = selectTimeBlocksForDate(date).filter((tb) => tb.id !== ignoreTimeBlockId);
+
+  const busyIntervals = [
+    ...events.map(e => ({ title: e.title, start: e.start_at, end: e.end_at, source: e.source || "manual" })),
+    ...timeBlocks.map(tb => ({ title: tb.title, start: tb.start_at, end: tb.end_at, source: tb.type || "task" }))
+  ];
+
+  const conflicts = [];
+  for (const busy of busyIntervals) {
+    if (intervalsOverlap(startAt, endAt, busy.start, busy.end)) {
+      conflicts.push(busy);
+    }
+  }
+
+  return {
+    conflict_count: conflicts.length,
+    conflicts
+  };
+}
+
+export function createCalendarEvent(data) {
+  const startAt = data.start_at;
+  const endAt = data.end_at;
+  const title = data.title || "Sự kiện mới";
+  const location = data.location || null;
+  const source = data.source || "manual";
+  const linkedTaskId = data.linked_task_id || null;
+
+  const validation = buildCalendarConflictValidation({ startAt, endAt });
+  if (validation.conflict_count > 0) {
+    return { ok: false, error: "Lịch trình bị trùng khớp với sự kiện khác.", validation };
+  }
+
+  const id = `event_${randomUUID()}`;
+  const now = new Date().toISOString();
+  sqlite
+    .prepare(
+      `INSERT INTO calendar_events (id, title, start_at, end_at, location, source, linked_task_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(id, title, startAt, endAt, location, source, linkedTaskId, now, now);
+
+  return { ok: true, event: { id, title, start_at: startAt, end_at: endAt, location, source, linked_task_id: linkedTaskId } };
+}
+
+export function updateCalendarEvent(eventId, data) {
+  const existing = sqlite.prepare("SELECT * FROM calendar_events WHERE id = ?").get(eventId);
+  if (!existing) {
+    return { ok: false, error: "Calendar event not found." };
+  }
+
+  const title = data.title !== undefined ? data.title : existing.title;
+  const startAt = data.start_at !== undefined ? data.start_at : existing.start_at;
+  const endAt = data.end_at !== undefined ? data.end_at : existing.end_at;
+  const location = data.location !== undefined ? data.location : existing.location;
+  const source = data.source !== undefined ? data.source : existing.source;
+  const linkedTaskId = data.linked_task_id !== undefined ? data.linked_task_id : existing.linked_task_id;
+
+  const validation = buildCalendarConflictValidation({ startAt, endAt, ignoreEventId: eventId });
+  if (validation.conflict_count > 0) {
+    return { ok: false, error: "Lịch trình bị trùng khớp với sự kiện khác.", validation };
+  }
+
+  const now = new Date().toISOString();
+  sqlite
+    .prepare(
+      `UPDATE calendar_events
+       SET title = ?, start_at = ?, end_at = ?, location = ?, source = ?, linked_task_id = ?, updated_at = ?
+       WHERE id = ?`
+    )
+    .run(title, startAt, endAt, location, source, linkedTaskId, now, eventId);
+
+  return { ok: true, event: { id: eventId, title, start_at: startAt, end_at: endAt, location, source, linked_task_id: linkedTaskId } };
+}
+
+export function deleteCalendarEvent(eventId) {
+  const existing = sqlite.prepare("SELECT * FROM calendar_events WHERE id = ?").get(eventId);
+  if (!existing) {
+    return { ok: false, error: "Calendar event not found." };
+  }
+
+  sqlite.prepare("DELETE FROM calendar_events WHERE id = ?").run(eventId);
+  return { ok: true, event_id: eventId };
+}
+
+export function createTimeBlock(data) {
+  const startAt = data.start_at;
+  const endAt = data.end_at;
+  const title = data.title || "Khung giờ";
+  const taskId = data.task_id || null;
+  const type = data.type || "task";
+  const status = data.status || "planned";
+
+  const date = startAt.slice(0, 10);
+  const dailyPlanId = data.daily_plan_id || getDailyPlanId(date);
+
+  const existingPlan = sqlite.prepare("SELECT * FROM daily_plans WHERE id = ?").get(dailyPlanId);
+  if (!existingPlan) {
+    const now = new Date().toISOString();
+    sqlite
+      .prepare(
+        `INSERT INTO daily_plans (id, plan_date, status, summary, created_at, updated_at)
+         VALUES (?, ?, 'draft', 'Auto-created plan', ?, ?)`
+      )
+      .run(dailyPlanId, date, now, now);
+  }
+
+  const validation = buildCalendarConflictValidation({ startAt, endAt });
+  if (validation.conflict_count > 0) {
+    return { ok: false, error: "Lịch trình bị trùng khớp với sự kiện khác.", validation };
+  }
+
+  const id = `time_block_${randomUUID()}`;
+  const now = new Date().toISOString();
+  sqlite
+    .prepare(
+      `INSERT INTO time_blocks (id, daily_plan_id, task_id, title, start_at, end_at, type, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(id, dailyPlanId, taskId, title, startAt, endAt, type, status, now, now);
+
+  return { ok: true, time_block: { id, daily_plan_id: dailyPlanId, task_id: taskId, title, start_at: startAt, end_at: endAt, type, status } };
+}
+
+export function updateTimeBlock(timeBlockId, data) {
+  const existing = sqlite.prepare("SELECT * FROM time_blocks WHERE id = ?").get(timeBlockId);
+  if (!existing) {
+    return { ok: false, error: "Time block not found." };
+  }
+
+  const title = data.title !== undefined ? data.title : existing.title;
+  const startAt = data.start_at !== undefined ? data.start_at : existing.start_at;
+  const endAt = data.end_at !== undefined ? data.end_at : existing.end_at;
+  const taskId = data.task_id !== undefined ? data.task_id : existing.task_id;
+  const type = data.type !== undefined ? data.type : existing.type;
+  const status = data.status !== undefined ? data.status : existing.status;
+  const dailyPlanId = data.daily_plan_id !== undefined ? data.daily_plan_id : existing.daily_plan_id;
+
+  const validation = buildCalendarConflictValidation({ startAt, endAt, ignoreTimeBlockId: timeBlockId });
+  if (validation.conflict_count > 0) {
+    return { ok: false, error: "Lịch trình bị trùng khớp với sự kiện khác.", validation };
+  }
+
+  const now = new Date().toISOString();
+  sqlite
+    .prepare(
+      `UPDATE time_blocks
+       SET title = ?, start_at = ?, end_at = ?, task_id = ?, type = ?, status = ?, daily_plan_id = ?, updated_at = ?
+       WHERE id = ?`
+    )
+    .run(title, startAt, endAt, taskId, type, status, dailyPlanId, now, timeBlockId);
+
+  return { ok: true, time_block: { id: timeBlockId, daily_plan_id: dailyPlanId, task_id: taskId, title, start_at: startAt, end_at: endAt, type, status } };
+}
+
+export function deleteTimeBlock(timeBlockId) {
+  const existing = sqlite.prepare("SELECT * FROM time_blocks WHERE id = ?").get(timeBlockId);
+  if (!existing) {
+    return { ok: false, error: "Time block not found." };
+  }
+
+  sqlite.prepare("DELETE FROM time_blocks WHERE id = ?").run(timeBlockId);
+  return { ok: true, time_block_id: timeBlockId };
 }

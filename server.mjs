@@ -34,7 +34,13 @@ import {
   updateReminder,
   deleteReminder,
   completeReminder,
-  snoozeReminder
+  snoozeReminder,
+  createCalendarEvent,
+  updateCalendarEvent,
+  deleteCalendarEvent,
+  createTimeBlock,
+  updateTimeBlock,
+  deleteTimeBlock
 } from "./server/db/app-queries.mjs";
 import { buildNowBriefing } from "./server/db/now-query.mjs";
 import { seedDatabase } from "./server/db/seed.mjs";
@@ -193,7 +199,67 @@ app.post("/api/reminders/:id/snooze", async (request, reply) => {
   return result;
 });
 
-app.get("/api/calendar", async () => getCalendarView());
+app.get("/api/calendar", async (request) => {
+  const mode = typeof request.query?.mode === "string" ? request.query.mode : "day";
+  const startDate = typeof request.query?.start_date === "string" ? request.query.start_date : undefined;
+  return getCalendarView(mode, startDate);
+});
+
+app.post("/api/calendar/events", async (request, reply) => {
+  const body = typeof request.body === "object" && request.body !== null ? request.body : {};
+  const result = createCalendarEvent(body);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
+
+app.patch("/api/calendar/events/:id", async (request, reply) => {
+  const eventId = typeof request.params?.id === "string" ? request.params.id : "";
+  const body = typeof request.body === "object" && request.body !== null ? request.body : {};
+  const result = updateCalendarEvent(eventId, body);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
+
+app.delete("/api/calendar/events/:id", async (request, reply) => {
+  const eventId = typeof request.params?.id === "string" ? request.params.id : "";
+  const result = deleteCalendarEvent(eventId);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
+
+app.post("/api/calendar/time-blocks", async (request, reply) => {
+  const body = typeof request.body === "object" && request.body !== null ? request.body : {};
+  const result = createTimeBlock(body);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
+
+app.patch("/api/calendar/time-blocks/:id", async (request, reply) => {
+  const timeBlockId = typeof request.params?.id === "string" ? request.params.id : "";
+  const body = typeof request.body === "object" && request.body !== null ? request.body : {};
+  const result = updateTimeBlock(timeBlockId, body);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
+
+app.delete("/api/calendar/time-blocks/:id", async (request, reply) => {
+  const timeBlockId = typeof request.params?.id === "string" ? request.params.id : "";
+  const result = deleteTimeBlock(timeBlockId);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
 
 app.get("/api/deadlines", async () => getDeadlineRadar());
 

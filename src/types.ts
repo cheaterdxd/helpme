@@ -309,9 +309,9 @@ export type TaskCollections = {
 };
 
 export type CalendarData = {
-  mode: "day";
-  date: string;
-  events: Array<{
+  mode: "day" | "week";
+  date?: string;
+  events?: Array<{
     id: string;
     title: string;
     start_at: string;
@@ -319,7 +319,7 @@ export type CalendarData = {
     source: string;
     linked_task_id: string | null;
   }>;
-  time_blocks: Array<{
+  time_blocks?: Array<{
     id: string;
     title: string;
     start_at: string;
@@ -328,11 +328,39 @@ export type CalendarData = {
     status: string;
     task_id: string | null;
   }>;
-  free_windows: Array<{
+  free_windows?: Array<{
     id: string;
     start: string;
     end: string;
     label: string;
+  }>;
+  start_date?: string;
+  days?: Array<{
+    date: string;
+    events: Array<{
+      id: string;
+      title: string;
+      start_at: string;
+      end_at: string;
+      source: string;
+      linked_task_id: string | null;
+    }>;
+    time_blocks: Array<{
+      id: string;
+      title: string;
+      start_at: string;
+      end_at: string;
+      type: string;
+      status: string;
+      task_id: string | null;
+    }>;
+    free_windows: Array<{
+      id: string;
+      start: string;
+      end: string;
+      label: string;
+      minutes: number;
+    }>;
   }>;
 };
 
