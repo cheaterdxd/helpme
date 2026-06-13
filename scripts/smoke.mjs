@@ -206,6 +206,21 @@ async function runSmokeChecks() {
   assert(rescheduleConfirmed.ok === true, "Confirm clear reschedule should return ok");
   assert(rescheduleConfirmed.result?.validation?.conflict_count === 0, "Confirmed reschedule should include validation result");
 
+  // Verify proposal rejection flow
+  const createTemp = await postJson("/api/ai/command", {
+    message: "Nhac toi ngay mai 8:30 hoc AWS 60 phut"
+  });
+  assert(createTemp.intent === "create_task", "Temp proposal should return create_task intent");
+  assert(createTemp.proposal?.id, "Temp proposal should have id");
+
+  const rejectedResponse = await postJson(`/api/ai/proposals/${createTemp.proposal.id}/reject`, {});
+  assert(rejectedResponse.ok === true, "Rejecting proposal should return ok");
+  assert(rejectedResponse.proposal?.status === "rejected", "Rejected proposal status should be rejected");
+
+  const confirmRejected = await postJsonExpectFailure(`/api/ai/proposals/${createTemp.proposal.id}/confirm`, {});
+  assert(confirmRejected.status === 400, "Confirming rejected proposal should return 400");
+  assert(confirmRejected.body?.error?.includes("already rejected"), "Error should state proposal is already rejected");
+
   // Verify low-confidence/fallback behavior
   const fallbackCheck = await postJson("/api/ai/command", {
     message: "abcxyz"

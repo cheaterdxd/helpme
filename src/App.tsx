@@ -4,6 +4,7 @@ import {
   completeFocusSession,
   completeTask,
   confirmProposal,
+  rejectProposal,
   fetchAppData,
   fetchNowBriefing,
   logHabitToday,
@@ -109,6 +110,23 @@ export function App() {
     }
   }
 
+  async function handleRejectProposal(proposalId: string) {
+    setAskPending(true);
+    try {
+      await rejectProposal(proposalId);
+      await loadAllData();
+      setAskAnswer({
+        mode: "answer",
+        intent: "proposal_rejected",
+        answer: "Proposal was cancelled/rejected.",
+        related_context: {},
+        suggested_actions: []
+      });
+    } finally {
+      setAskPending(false);
+    }
+  }
+
   async function handleCompleteTask(taskId: string) {
     await completeTask(taskId);
     await loadAllData();
@@ -181,7 +199,7 @@ export function App() {
           pending={askPending}
           onAsk={handleAsk}
           onConfirmProposal={handleConfirmProposal}
-          onClearAnswer={() => setAskAnswer(null)}
+          onRejectProposal={handleRejectProposal}
         />
       )}
     </div>

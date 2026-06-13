@@ -19,7 +19,7 @@ type AskOverlayProps = {
   pending: boolean;
   onAsk: (message: string) => Promise<void>;
   onConfirmProposal: (proposalId: string) => Promise<void>;
-  onClearAnswer: () => void;
+  onRejectProposal: (proposalId: string) => Promise<void>;
 };
 
 export function AskOverlay({
@@ -29,7 +29,7 @@ export function AskOverlay({
   pending,
   onAsk,
   onConfirmProposal,
-  onClearAnswer
+  onRejectProposal
 }: AskOverlayProps) {
   const [message, setMessage] = useState("");
 
@@ -75,7 +75,7 @@ export function AskOverlay({
                   <Check aria-hidden="true" size={15} />
                   <span>Confirm</span>
                 </button>
-                <button type="button" className="cancel-button" onClick={onClearAnswer}>
+                <button type="button" className="cancel-button" onClick={() => void onRejectProposal(answer.proposal!.id)}>
                   <X aria-hidden="true" size={15} />
                   <span>Cancel</span>
                 </button>

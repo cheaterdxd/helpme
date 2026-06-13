@@ -36,7 +36,7 @@ It is not yet complete as the final personal operating system in `docs/goal.md`.
 | Reminder/notification engine | `[ ] Missing` | Schema exists, but no usable reminder APIs/notifications. |
 | AI command layer | `[x] Done` | Orb, proposals, confirm flow exist; orchestrator and LLM intent parser fully implemented. |
 | Local LLM integration | `[~] Partial` | Ollama client/status/JSON call/logging exist; limited usage, not primary command brain. |
-| AI safety | `[~] Partial` | Proposal-first and conflict validation exist for several flows; not all mutating domains exist yet. |
+| AI safety | `[~] Partial` | Proposal-first, reject/cancel, and conflict validation exist; not all mutating domains implemented yet. |
 | Settings/preferences | `[ ] Missing` | Settings screen mainly displays local AI status; no editable preferences. |
 | Verification | `[x] Done` | Smoke script covers core APIs, proposals, focus, habits, conflicts. |
 
@@ -489,15 +489,16 @@ DOD:
 - [x] UI shows proposal preview and confirm button.
 - [x] Confirm endpoint applies proposal.
 - [x] Scheduled data is validated before and during confirmation for implemented flows.
-- [ ] Edit/cancel proposal flow.
-- [ ] Proposal rejection/cancel API.
+- [x] Edit/cancel proposal flow.
+- [x] Proposal rejection/cancel API.
 
 Current evidence:
-- `server/db/app-queries.mjs`: `createActionProposal`, `confirmActionProposal`, `applyProposal`.
-- `src/components/AskOverlay.tsx`: proposal previews and confirm.
-- `scripts/smoke.mjs`: proposal confirmation and conflict rejection.
+- `server/db/app-queries.mjs`: `createActionProposal`, `confirmActionProposal`, `rejectActionProposal`, `applyProposal`.
+- `server.mjs`: `/api/ai/proposals/:id/confirm` and `/api/ai/proposals/:id/reject` endpoints.
+- `src/components/AskOverlay.tsx` invokes `onRejectProposal` to cancel/reject the proposal card in SQLite.
+- `scripts/smoke.mjs` verifies proposal rejection, confirmation constraints, and database status updates.
 
-Assessment: partial.
+Assessment: done.
 
 ### K2. Verification
 

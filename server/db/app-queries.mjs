@@ -406,6 +406,32 @@ export function confirmActionProposal(proposalId) {
   };
 }
 
+export function rejectActionProposal(proposalId) {
+  const proposal = sqlite.prepare("SELECT * FROM ai_action_proposals WHERE id = ?").get(proposalId);
+  if (!proposal) {
+    return { ok: false, error: "Proposal not found." };
+  }
+
+  if (proposal.status !== "pending") {
+    return { ok: false, error: `Proposal is already ${proposal.status}.` };
+  }
+
+  sqlite
+    .prepare("UPDATE ai_action_proposals SET status = 'rejected' WHERE id = ?")
+    .run(proposalId);
+
+  return {
+    ok: true,
+    proposal: {
+      id: proposal.id,
+      intent: proposal.intent,
+      title: proposal.title,
+      summary: proposal.summary,
+      status: "rejected"
+    }
+  };
+}
+
 export function createActionProposal({ intent, title, summary, payload }) {
   const id = `proposal_${randomUUID()}`;
   const createdAt = new Date().toISOString();

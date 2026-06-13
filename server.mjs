@@ -12,6 +12,7 @@ import {
   completeFocusSession,
   completeTask,
   confirmActionProposal,
+  rejectActionProposal,
   getCalendarView,
   getDeadlineRadar,
   getGoalsOverview,
@@ -139,6 +140,17 @@ app.post("/api/ai/command", async (request, reply) => {
 app.post("/api/ai/proposals/:id/confirm", async (request, reply) => {
   const proposalId = typeof request.params?.id === "string" ? request.params.id : "";
   const result = confirmActionProposal(proposalId);
+
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+
+  return result;
+});
+
+app.post("/api/ai/proposals/:id/reject", async (request, reply) => {
+  const proposalId = typeof request.params?.id === "string" ? request.params.id : "";
+  const result = rejectActionProposal(proposalId);
 
   if (!result.ok) {
     return reply.code(400).send(result);

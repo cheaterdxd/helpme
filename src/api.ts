@@ -48,6 +48,16 @@ export async function confirmProposal(proposalId: string) {
   });
 }
 
+export async function rejectProposal(proposalId: string) {
+  return requestJson(`/api/ai/proposals/${proposalId}/reject`, "HelpMe could not reject this proposal.", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({})
+  });
+}
+
 export async function completeTask(taskId: string) {
   return postEmpty(`/api/tasks/${taskId}/complete`, "HelpMe could not complete this task.");
 }
