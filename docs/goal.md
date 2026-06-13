@@ -276,28 +276,6 @@ Move tomorrow:
 
 ---
 
-### D3. Focus session
-
-Bạn bấm “Start Focus”.
-
-HelpMe tạo phiên:
-
-```text
-Focus: Write HelpMe design
-Duration: 50 minutes
-Break: 10 minutes
-Mode: Deep work
-```
-
-Sau phiên, hệ thống hỏi:
-
-```text
-Bạn có hoàn thành không?
-Có cần tạo task follow-up không?
-```
-
----
-
 ## Nhóm E — Habit & routine
 
 ### E1. Theo dõi thói quen
@@ -405,7 +383,7 @@ Dạng timeline:
 22:30 ─ Review day
 ```
 
-Có kéo-thả task vào khung giờ.
+Có giao diện click chọn / thiết lập giờ (thay cho kéo-thả) để xếp nhanh task vào khung giờ.
 
 ---
 
@@ -728,7 +706,7 @@ Chức năng:
 ```text
 - Day/week/month view
 - Time blocking
-- Drag and drop task
+- Click-to-schedule task selection / Assign time block via dropdown or modal
 - Recurring events
 - Free time detection
 - Calendar conflict warning
@@ -759,7 +737,7 @@ Chức năng:
 - Plan my week
 - Reschedule unfinished tasks
 - Detect overload
-- Recommend focus block
+- Recommend next task block
 - Create realistic schedule
 ```
 

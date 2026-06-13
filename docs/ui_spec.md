@@ -30,7 +30,7 @@ Shows the recommended next action. It may allow manual selection through Goal ->
 
 ### Today
 
-Shows a timeline, suggested focus, overload signal, and minimal day summary.
+Shows a timeline, suggested next task, overload signal, and minimal day summary.
 
 ### Inbox
 

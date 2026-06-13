@@ -21,16 +21,16 @@ It is not yet complete as the final personal operating system in `docs/goal.md`.
 | --- | --- | --- |
 | Web server app | `[x] Done` | Fastify serves APIs and production static files. |
 | SQLite data foundation | `[x] Done` | Core entities exist in schema and migrations. |
-| Core navigation/screens | `[~] Partial` | Screens exist with standardized loading, empty, and error states; week calendar/drag-drop missing. |
+| Core navigation/screens | `[~] Partial` | Screens exist with standardized loading, empty, and error states; week calendar/click-to-schedule modal flow missing. |
 | Now recommended action | `[x] Done` | Now has goal -> project -> task selection and AI recommendation signal. |
-| Today / morning brief | `[~] Partial` | Today summary and suggested focus exist, but no true generated morning brief history/context. |
+| Today / morning brief | `[~] Partial` | Today summary and suggested task exist, but no true generated morning brief history/context. |
 | AI day planning | `[x] Done` | LLM-driven plan candidates are generated, overload resolved, and scheduled under deterministic constraints. |
 | Evening review | `[~] Partial` | Review summary and reschedule proposal exist, but natural review capture and persisted review entries are missing. |
-| Task manager | `[~] Partial` | Complete/reopen/focus and AI create/reschedule exist; full direct CRUD/edit/cancel/link/breakdown missing. |
+| Task manager | `[~] Partial` | Complete/reopen and AI create/reschedule exist; full direct CRUD/edit/cancel/link/breakdown missing. |
 | Smart inbox | `[~] Partial` | Organize proposal exists, but classification is rule-based and not LLM-backed. |
 | Deadline manager | `[~] Partial` | Radar buckets exist; CRUD, reminders, LLM capture/explanation are missing. |
-| Calendar manager | `[~] Partial` | Day view, time blocks, free windows, conflict detection exist; week/month/drag/drop/recurrence/event CRUD missing. |
-| Focus sessions | `[~] Partial` | Start/complete focus works; follow-up capture after focus is missing. |
+| Calendar manager | `[~] Partial` | Day view, time blocks, free windows, conflict detection exist; week/month/click-to-schedule/recurrence/event CRUD missing. |
+| Focus sessions | `[x] N/A` | Focus sessions removed from project scope. |
 | Habit tracker | `[~] Partial` | Check-in/log, streak, completion, insight exist; create/edit/routine builder/deeper review missing. |
 | Goal manager | `[~] Partial` | Goal -> project -> task overview exists; CRUD, breakdown, true progress intelligence missing. |
 | Reminder/notification engine | `[ ] Missing` | Schema exists, but no usable reminder APIs/notifications. |
@@ -46,7 +46,7 @@ It is not yet complete as the final personal operating system in `docs/goal.md`.
 
 DOD:
 - [x] Show today's summary: due today, overdue, events, inbox, open tasks, planned minutes.
-- [x] Recommend a focus task with reason and risk.
+- [x] Recommend next task with reason and risk.
 - [x] Show Today timeline.
 - [~] Include habit, deadline, and calendar context in a concise daily view.
 - [ ] Generate a true morning brief using LLM synthesis.
@@ -189,7 +189,7 @@ DOD:
 - [x] Detect free windows.
 - [x] Validate calendar conflicts.
 - [x] Write time blocks after proposal confirmation.
-- [ ] Drag/drop task into time slot.
+- [ ] Click-to-schedule trigger / popover / modal time assignment.
 - [ ] Event/time-block CRUD endpoints.
 - [ ] Week/month views.
 - [ ] Recurring events.
@@ -219,23 +219,9 @@ Current evidence:
 
 Assessment: partial.
 
-### D3. Focus Session
+### D3. Focus Session (Removed)
 
-DOD:
-- [x] Start focus session from suggested task.
-- [x] Complete focus session.
-- [x] Optionally complete task after focus.
-- [x] Show active focus session on Today.
-- [ ] Ask follow-up after focus.
-- [ ] Create follow-up task from post-focus input.
-- [ ] Break timer / deep-work mode settings.
-
-Current evidence:
-- `server/db/app-queries.mjs`: `startFocusSession`, `completeFocusSession`.
-- `src/components/RoutePanel.tsx`: focus actions in Today.
-- `scripts/smoke.mjs`: start and complete focus session checks.
-
-Assessment: partial.
+Focus session tracking, timer settings, and post-session follow-ups have been removed from the project scope.
 
 ## E. Habit & Routine
 
@@ -322,7 +308,7 @@ DOD:
 - [~] Screens are backed by SQLite data.
 - [ ] Calendar week/month views.
 - [x] Settings editing.
-- [ ] Drag/drop interactions.
+- [ ] Click-to-schedule trigger / popover / modal time assignment.
 
 Current evidence:
 - `src/navigation.ts`: route list.
@@ -343,7 +329,7 @@ DOD:
 - [x] Goal.
 - [x] Project.
 - [x] Reminder.
-- [x] Focus session.
+- [x] Focus session (Deprecated/Inactive).
 - [x] Daily plan.
 - [x] Time block.
 - [x] AI run.
@@ -384,7 +370,7 @@ Assessment: done.
 DOD:
 - [x] Rank open tasks.
 - [x] Account for deadline urgency, priority, effort fit, goal importance, overdue penalty.
-- [x] Recommend focus.
+- [x] Recommend next task.
 - [x] Create day plan proposal.
 - [x] Use LLM for summary only.
 - [x] LLM generates plan candidates.
