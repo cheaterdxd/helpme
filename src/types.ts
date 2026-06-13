@@ -372,6 +372,10 @@ export type DeadlineRadar = Record<"overdue" | "today" | "this_week" | "later", 
   status: string;
   task_title?: string | null;
   goal_title?: string | null;
+  project_title?: string | null;
+  goal_id?: string | null;
+  project_id?: string | null;
+  task_id?: string | null;
   urgency_score: number;
 }>>;
 

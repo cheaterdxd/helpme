@@ -40,7 +40,10 @@ import {
   deleteCalendarEvent,
   createTimeBlock,
   updateTimeBlock,
-  deleteTimeBlock
+  deleteTimeBlock,
+  createDeadline,
+  updateDeadline,
+  deleteDeadline
 } from "./server/db/app-queries.mjs";
 import { buildNowBriefing } from "./server/db/now-query.mjs";
 import { seedDatabase } from "./server/db/seed.mjs";
@@ -262,6 +265,34 @@ app.delete("/api/calendar/time-blocks/:id", async (request, reply) => {
 });
 
 app.get("/api/deadlines", async () => getDeadlineRadar());
+
+app.post("/api/deadlines", async (request, reply) => {
+  const body = typeof request.body === "object" && request.body !== null ? request.body : {};
+  const result = createDeadline(body);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
+
+app.patch("/api/deadlines/:id", async (request, reply) => {
+  const deadlineId = typeof request.params?.id === "string" ? request.params.id : "";
+  const body = typeof request.body === "object" && request.body !== null ? request.body : {};
+  const result = updateDeadline(deadlineId, body);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
+
+app.delete("/api/deadlines/:id", async (request, reply) => {
+  const deadlineId = typeof request.params?.id === "string" ? request.params.id : "";
+  const result = deleteDeadline(deadlineId);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
 
 app.get("/api/habits", async () => getHabitDashboard());
 

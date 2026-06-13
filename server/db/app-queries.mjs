@@ -1062,6 +1062,23 @@ function applyProposal(intent, payload) {
     return { rescheduled_tasks: moved, target_date: payload.target_date };
   }
 
+  if (intent === "create_deadline") {
+    const result = createDeadline({
+      title: payload.title,
+      due_at: payload.due_at,
+      severity: payload.severity ?? "medium",
+      status: payload.status ?? "active",
+      goal_id: payload.goal_id ?? null,
+      project_id: payload.project_id ?? null,
+      task_id: payload.task_id ?? null
+    });
+
+    if (!result.ok) {
+      throw new Error(result.error || "Failed to create deadline.");
+    }
+    return { deadline_id: result.deadline.id };
+  }
+
   return { ignored: true };
 }
 
@@ -1080,10 +1097,11 @@ export function selectTasks() {
 function selectDeadlines() {
   return sqlite
     .prepare(
-      `SELECT d.*, t.title AS task_title, g.title AS goal_title
+      `SELECT d.*, t.title AS task_title, g.title AS goal_title, p.title AS project_title
        FROM deadlines d
        LEFT JOIN tasks t ON t.id = d.task_id
        LEFT JOIN goals g ON g.id = d.goal_id
+       LEFT JOIN projects p ON p.id = d.project_id
        WHERE d.status IN ('active', 'watched', 'open')
        ORDER BY d.due_at ASC`
     )
@@ -1980,3 +1998,69 @@ export function deleteTimeBlock(timeBlockId) {
   sqlite.prepare("DELETE FROM time_blocks WHERE id = ?").run(timeBlockId);
   return { ok: true, time_block_id: timeBlockId };
 }
+
+export function createDeadline(data) {
+  const title = data.title || "Hạn chót mới";
+  const dueAt = data.due_at || new Date().toISOString();
+  const severity = data.severity || "medium";
+  const status = data.status || "active";
+  const goalId = data.goal_id || null;
+  const projectId = data.project_id || null;
+  const taskId = data.task_id || null;
+
+  const id = `deadline_${randomUUID()}`;
+  const now = new Date().toISOString();
+  sqlite
+    .prepare(
+      `INSERT INTO deadlines (id, title, due_at, severity, status, goal_id, project_id, task_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(id, title, dueAt, severity, status, goalId, projectId, taskId, now, now);
+
+  syncAutomaticReminders(getTodayDate());
+
+  return { ok: true, deadline: { id, title, due_at: dueAt, severity, status, goal_id: goalId, project_id: projectId, task_id: taskId } };
+}
+
+export function updateDeadline(deadlineId, data) {
+  const existing = sqlite.prepare("SELECT * FROM deadlines WHERE id = ?").get(deadlineId);
+  if (!existing) {
+    return { ok: false, error: "Deadline not found." };
+  }
+
+  const title = data.title !== undefined ? data.title : existing.title;
+  const dueAt = data.due_at !== undefined ? data.due_at : existing.due_at;
+  const severity = data.severity !== undefined ? data.severity : existing.severity;
+  const status = data.status !== undefined ? data.status : existing.status;
+  const goalId = data.goal_id !== undefined ? data.goal_id : existing.goal_id;
+  const projectId = data.project_id !== undefined ? data.project_id : existing.project_id;
+  const taskId = data.task_id !== undefined ? data.task_id : existing.task_id;
+
+  const now = new Date().toISOString();
+  sqlite
+    .prepare(
+      `UPDATE deadlines
+       SET title = ?, due_at = ?, severity = ?, status = ?, goal_id = ?, project_id = ?, task_id = ?, updated_at = ?
+       WHERE id = ?`
+    )
+    .run(title, dueAt, severity, status, goalId, projectId, taskId, now, deadlineId);
+
+  syncAutomaticReminders(getTodayDate());
+
+  return { ok: true, deadline: { id: deadlineId, title, due_at: dueAt, severity, status, goal_id: goalId, project_id: projectId, task_id: taskId } };
+}
+
+export function deleteDeadline(deadlineId) {
+  const existing = sqlite.prepare("SELECT * FROM deadlines WHERE id = ?").get(deadlineId);
+  if (!existing) {
+    return { ok: false, error: "Deadline not found." };
+  }
+
+  sqlite.prepare("DELETE FROM deadlines WHERE id = ?").run(deadlineId);
+  sqlite.prepare("DELETE FROM reminders WHERE deadline_id = ?").run(deadlineId);
+
+  syncAutomaticReminders(getTodayDate());
+
+  return { ok: true, deadline_id: deadlineId };
+}
+

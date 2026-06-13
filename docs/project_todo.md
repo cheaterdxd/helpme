@@ -179,11 +179,11 @@ Note: Parts 1-9 were completed before the release rule was made strict, so some 
   - Commit: 24d1424
   - Verified: check, build
 
-- [ ] Part 26 - Deadline Workflows v2
+- [x] Part 26 - Deadline Workflows v2
   - Goal: add deadline CRUD, linking, LLM deadline extraction/explanation, reminders, and deterministic date buckets.
-  - Release:
-  - Commit:
-  - Verified:
+  - Release: 2026-06-13
+  - Commit: 3e749f9
+  - Verified: check, build
 
 - [ ] Part 27 - Habits & Routine v2
   - Goal: make habits editable with LLM setup suggestions, routine proposals, weekly completion, and deterministic streak handling.

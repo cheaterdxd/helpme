@@ -11,7 +11,8 @@ import {
   rankOpenTasks,
   createActionProposal,
   selectTasks,
-  buildCalendarConflictValidation
+  buildCalendarConflictValidation,
+  getGoalsOverview
 } from "../db/app-queries.mjs";
 import { runOllamaJson } from "./ollama-client.mjs";
 import { orchestrateAiCommand } from "./orchestrator.mjs";
@@ -40,6 +41,8 @@ const intentParserJsonSchema = {
         "create_event",
         "create_time_block",
         "bulk_reschedule",
+        "create_deadline",
+        "explain_deadline",
         "fallback"
       ]
     },
@@ -51,7 +54,8 @@ const intentParserJsonSchema = {
     priority: { type: "number" },
     availableStart: { type: "string" },
     availableEnd: { type: "string" },
-    location: { type: "string" }
+    location: { type: "string" },
+    severity: { type: "string" }
   },
   required: ["intent", "confidence"]
 };
@@ -70,6 +74,8 @@ const intentParserValidator = z.object({
     "create_event",
     "create_time_block",
     "bulk_reschedule",
+    "create_deadline",
+    "explain_deadline",
     "fallback"
   ]),
   confidence: z.number().min(0).max(1),
@@ -80,7 +86,8 @@ const intentParserValidator = z.object({
   priority: z.number().optional().nullable(),
   availableStart: z.string().optional().nullable(),
   availableEnd: z.string().optional().nullable(),
-  location: z.string().optional().nullable()
+  location: z.string().optional().nullable(),
+  severity: z.string().optional().nullable()
 });
 
 export async function handleAiCommand(rawMessage) {
@@ -117,6 +124,8 @@ async function parseIntentWithLlm(message) {
     "- create_event: user wants to add a calendar event or meeting (e.g. \"thêm sự kiện họp nhóm ngày mai 9h đến 10h\", \"tạo event meeting 14:00-15:00\"). Extract title, scheduledStart, scheduledEnd, and location if mentioned.",
     "- create_time_block: user wants to block time for focused work (e.g. \"block 2 tiếng học AWS tối nay\", \"đặt khung giờ 20h-22h để code\"). Extract title, scheduledStart, scheduledEnd or estimatedMinutes.",
     "- bulk_reschedule: user wants to move multiple non-urgent/unfinished tasks to another day (e.g. \"dời các task không gấp sang ngày mai\", \"chuyển hết task chưa xong sang mai\").",
+    "- create_deadline: user wants to add/create a new deadline (e.g. \"hạn chót nộp báo cáo là thứ sáu tuần sau lúc 17h\", \"set deadline học AWS ngày mai\"). Extract title, scheduledStart (as the due date/time, e.g. \"2026-06-19T17:00:00+07:00\"), and severity (\"high\" if they mention \"gấp\"/\"quan trọng\"/\"khẩn cấp\", otherwise \"medium\").",
+    "- explain_deadline: user wants to explain, analyze, or detail deadlines or their scheduling pressure (e.g. \"giải thích các hạn chót của tôi\", \"tại sao deadline này gấp\").",
     "- fallback: command is empty, unclear, or does not match any other intent.",
     "",
     `User command: "${message}"`
@@ -400,14 +409,134 @@ async function executeAiCommand({ message, normalized }) {
     };
   }
 
-  if (parsed.intent === "deadline_radar") {
+  if (parsed.intent === "create_deadline") {
+    const dueAt = parsed.scheduledStart || `${getTodayDate()}T23:59:59+07:00`;
+    const title = parsed.title || "Hạn chót mới";
+    const severity = parsed.severity || "medium";
+
+    const allTasks = selectTasks();
+    const goalsOverview = getGoalsOverview();
+    const allProjects = goalsOverview.flatMap((g) => g.projects || []);
+
+    let goalId = null;
+    let projectId = null;
+    let taskId = null;
+    let linkedName = null;
+    let linkedType = null;
+
+    const searchWords = title.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+    const matchedTask = allTasks.find((t) =>
+      searchWords.some((w) => t.title.toLowerCase().includes(w))
+    );
+    if (matchedTask) {
+      taskId = matchedTask.id;
+      linkedName = matchedTask.title;
+      linkedType = "task";
+      goalId = matchedTask.goalId || null;
+      projectId = matchedTask.projectId || null;
+    } else {
+      const matchedProj = allProjects.find((p) =>
+        searchWords.some((w) => p.title.toLowerCase().includes(w))
+      );
+      if (matchedProj) {
+        projectId = matchedProj.id;
+        linkedName = matchedProj.title;
+        linkedType = "project";
+        goalId = matchedProj.goalId || null;
+      } else {
+        const matchedGoal = goalsOverview.find((g) =>
+          searchWords.some((w) => g.title.toLowerCase().includes(w))
+        );
+        if (matchedGoal) {
+          goalId = matchedGoal.id;
+          linkedName = matchedGoal.title;
+          linkedType = "goal";
+        }
+      }
+    }
+
+    const payload = {
+      title,
+      due_at: dueAt,
+      severity,
+      status: "active",
+      goal_id: goalId,
+      project_id: projectId,
+      task_id: taskId
+    };
+
+    const linkedSummary = linkedName ? ` (Liên kết ${linkedType}: "${linkedName}")` : "";
+    const proposal = createActionProposal({
+      intent: "create_deadline",
+      title: `Tạo deadline: ${title}`,
+      summary: `Hạn chót: ${dueAt.replace("T", " ").slice(0, 16)} · Mức độ: ${severity}${linkedSummary}.`,
+      payload
+    });
+
+    return {
+      mode: "proposal",
+      intent: "create_deadline",
+      answer: `Tôi đã chuẩn bị đề xuất tạo deadline "${title}" vào lúc ${dueAt.replace("T", " ").slice(0, 16)}${linkedSummary}. Hãy xác nhận bên dưới.`,
+      proposal,
+      related_context: payload
+    };
+  }
+
+  if (parsed.intent === "explain_deadline" || parsed.intent === "deadline_radar") {
     const radar = getDeadlineRadar();
-    const urgentCount = radar.overdue.length + radar.today.length;
+    const today = getTodayDate();
+
+    const overdueList = radar.overdue.map((d) => `- Overdue: "${d.title}" (Due: ${d.due_at.slice(0, 10)}, Severity: ${d.severity})`).join("\n");
+    const todayList = radar.today.map((d) => `- Today: "${d.title}" (Severity: ${d.severity})`).join("\n");
+    const weekList = radar.this_week.map((d) => `- This Week: "${d.title}" (Due: ${d.due_at.slice(0, 10)}, Severity: ${d.severity})`).join("\n");
+    const laterList = radar.later.map((d) => `- Later: "${d.title}" (Due: ${d.due_at.slice(0, 10)})`).join("\n");
+
+    const prompt = [
+      "You are the Deadline Advisor for HelpMe.",
+      `Today's date is: ${today}`,
+      "Here is the list of active deadlines grouped by urgency:",
+      overdueList || "- No overdue deadlines",
+      todayList || "- No deadlines due today",
+      weekList || "- No deadlines due this week",
+      laterList || "- No later deadlines",
+      "",
+      "Explain the deadline pressure to the user in Vietnamese in a calm, clear, and reassuring tone.",
+      "Summarize which deadlines need immediate action (overdue/today), what the overall risk is, and what they should focus on first.",
+      "Keep it brief (3-4 sentences maximum). Do not repeat the dates, just outline the priorities."
+    ].join("\n");
+
+    let explanation = "Tôi không thể kết nối với AI để phân tích deadline lúc này.";
+    try {
+      const result = await runOllamaJson({
+        prompt,
+        schema: {
+          type: "object",
+          properties: {
+            explanation: { type: "string" }
+          },
+          required: ["explanation"]
+        },
+        validator: z.object({
+          explanation: z.string().trim()
+        }),
+        timeoutMs: 4000
+      });
+      if (result.ok) {
+        explanation = result.value.explanation;
+      }
+    } catch (e) {
+      const overdueCount = radar.overdue.length;
+      const todayCount = radar.today.length;
+      if (overdueCount || todayCount) {
+        explanation = `Bạn đang có ${overdueCount} hạn chót quá hạn và ${todayCount} hạn chót trong hôm nay cần được giải quyết ngay để tránh ảnh hưởng đến tiến độ công việc.`;
+      } else {
+        explanation = "Hạn chót của bạn hiện tại đang ở trạng thái an toàn. Không có mục nào quá hạn hoặc khẩn cấp trong ngày hôm nay.";
+      }
+    }
+
     return readOnlyAnswer(
-      "deadline_radar",
-      urgentCount
-        ? `There are ${urgentCount} deadline items that need attention now.`
-        : "There is no deadline that needs immediate action today.",
+      parsed.intent,
+      explanation,
       radar
     );
   }

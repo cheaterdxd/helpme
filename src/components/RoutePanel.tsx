@@ -38,7 +38,11 @@ import {
   createTimeBlockApi,
   updateTimeBlockApi,
   deleteTimeBlockApi,
-  updateTaskApi
+  updateTaskApi,
+  fetchDeadlineRadarApi,
+  createDeadlineApi,
+  updateDeadlineApi,
+  deleteDeadlineApi
 } from "../api";
 
 type SecondaryRoute = Exclude<Route, "now">;
@@ -104,7 +108,7 @@ export function RoutePanel({
   }
   if (route === "inbox") return <InboxView data={data} onCommand={onCommand} onEditTask={onEditTask} />;
   if (route === "calendar") return <CalendarView data={data} onCommand={onCommand} onEditTask={onEditTask} />;
-  if (route === "deadlines") return <DeadlinesView radar={data.deadlines} />;
+  if (route === "deadlines") return <DeadlinesView radar={data.deadlines} onCommand={onCommand} data={data} />;
   if (route === "goals") return <GoalsView data={data} />;
   if (route === "habits") return <HabitsView data={data} onLogHabit={onLogHabit} />;
   if (route === "review") return <ReviewView data={data} onCommand={onCommand} onCompleteTask={onCompleteTask} onReopenTask={onReopenTask} onEditTask={onEditTask} />;
@@ -1291,7 +1295,66 @@ function CalendarItemModal({
   );
 }
 
-function DeadlinesView({ radar }: { radar: DeadlineRadar }) {
+function DeadlinesView({
+  radar: initialRadar,
+  onCommand,
+  data
+}: {
+  radar: DeadlineRadar;
+  onCommand: (message: string) => Promise<void>;
+  data: AppData;
+}) {
+  const [radar, setRadar] = useState<DeadlineRadar>(initialRadar);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingDeadline, setEditingDeadline] = useState<any | null>(null);
+
+  const loadDeadlines = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetchDeadlineRadarApi();
+      setRadar(res);
+    } catch (err: any) {
+      setError(err.message || "Failed to load deadlines.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setRadar(initialRadar);
+  }, [initialRadar]);
+
+  const handleOpenCreate = () => {
+    setEditingDeadline(null);
+    setModalOpen(true);
+  };
+
+  const handleOpenEdit = (deadline: any) => {
+    setEditingDeadline(deadline);
+    setModalOpen(true);
+  };
+
+  const handleSave = async (payload: any) => {
+    if (editingDeadline) {
+      await updateDeadlineApi(editingDeadline.id, payload);
+    } else {
+      await createDeadlineApi(payload);
+    }
+    setModalOpen(false);
+    void loadDeadlines();
+  };
+
+  const handleDelete = async (id: string) => {
+    if (confirm("Are you sure you want to delete this deadline?")) {
+      await deleteDeadlineApi(id);
+      setModalOpen(false);
+      void loadDeadlines();
+    }
+  };
+
   const columns: Array<[keyof DeadlineRadar, string]> = [
     ["overdue", "Overdue"],
     ["today", "Today"],
@@ -1308,15 +1371,106 @@ function DeadlinesView({ radar }: { radar: DeadlineRadar }) {
         body="HelpMe groups commitments by time pressure and keeps scoring visible."
       />
 
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginBottom: "16px" }}>
+        <button
+          type="button"
+          className="row-action"
+          onClick={() => void onCommand("giải thích các hạn chót của tôi")}
+          style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px", fontSize: "13px" }}
+        >
+          <Sparkles size={14} style={{ color: "var(--accent)" }} />
+          <span>Explain radar</span>
+        </button>
+        <button
+          type="button"
+          className="row-action"
+          onClick={handleOpenCreate}
+          style={{ display: "flex", alignItems: "center", gap: "4px", padding: "6px 12px", fontSize: "13px" }}
+        >
+          <Plus size={14} />
+          <span>Deadline</span>
+        </button>
+      </div>
+
+      {loading && (
+        <div style={{ color: "var(--muted)", fontSize: "13px", marginBottom: "12px" }}>
+          Loading deadlines...
+        </div>
+      )}
+      {error && (
+        <div className="settings-alert-error" style={{ marginBottom: "12px" }}>
+          {error}
+        </div>
+      )}
+
       <div className="radar-grid">
         {columns.map(([key, label]) => (
           <section className="radar-column" key={key}>
             <h2>{label}</h2>
-            {radar[key].length ? (
+            {radar[key] && radar[key].length ? (
               radar[key].map((deadline) => (
-                <div className="radar-item" data-severity={key} key={deadline.id}>
-                  <strong>{deadline.title}</strong>
-                  <span>{deadline.due_at.slice(0, 10)} · score {deadline.urgency_score}</span>
+                <div
+                  className="radar-item"
+                  data-severity={key}
+                  key={deadline.id}
+                  onClick={() => handleOpenEdit(deadline)}
+                  style={{
+                    cursor: "pointer",
+                    position: "relative",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px"
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                    <strong style={{ fontSize: "13px", color: "var(--text)" }}>{deadline.title}</strong>
+                    <span
+                      style={{
+                        fontSize: "9px",
+                        fontWeight: 600,
+                        padding: "2px 6px",
+                        borderRadius: "10px",
+                        backgroundColor:
+                          deadline.severity === "high" || deadline.severity === "critical"
+                            ? "rgba(239, 68, 68, 0.1)"
+                            : deadline.severity === "medium"
+                            ? "rgba(245, 158, 11, 0.1)"
+                            : "rgba(107, 114, 128, 0.1)",
+                        color:
+                          deadline.severity === "high" || deadline.severity === "critical"
+                            ? "rgb(239, 68, 68)"
+                            : deadline.severity === "medium"
+                            ? "rgb(245, 158, 11)"
+                            : "rgb(107, 114, 128)"
+                      }}
+                    >
+                      {deadline.severity}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: "11px", color: "var(--muted)" }}>
+                    {deadline.due_at.slice(0, 16).replace("T", " ")} · score {deadline.urgency_score}
+                  </span>
+
+                  {/* Linked Indicators */}
+                  {(deadline.task_title || deadline.project_title || deadline.goal_title) && (
+                    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "4px" }}>
+                      {deadline.task_title && (
+                        <span style={{ fontSize: "10px", padding: "1px 4px", borderRadius: "3px", backgroundColor: "rgba(33, 47, 39, 0.05)", color: "var(--accent)" }}>
+                          Task: {deadline.task_title}
+                        </span>
+                      )}
+                      {deadline.project_title && (
+                        <span style={{ fontSize: "10px", padding: "1px 4px", borderRadius: "3px", backgroundColor: "rgba(59, 130, 246, 0.05)", color: "#3b82f6" }}>
+                          Proj: {deadline.project_title}
+                        </span>
+                      )}
+                      {deadline.goal_title && (
+                        <span style={{ fontSize: "10px", padding: "1px 4px", borderRadius: "3px", backgroundColor: "rgba(139, 92, 246, 0.05)", color: "#8b5cf6" }}>
+                          Goal: {deadline.goal_title}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))
             ) : (
@@ -1327,7 +1481,305 @@ function DeadlinesView({ radar }: { radar: DeadlineRadar }) {
           </section>
         ))}
       </div>
+
+      <DeadlineEditorModal
+        isOpen={modalOpen}
+        deadline={editingDeadline}
+        onClose={() => setModalOpen(false)}
+        onSave={handleSave}
+        onDelete={editingDeadline ? handleDelete : undefined}
+        data={data}
+      />
     </section>
+  );
+}
+
+type DeadlineEditorModalProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (payload: any) => Promise<void>;
+  onDelete?: (id: string) => Promise<void>;
+  deadline: any | null;
+  data: AppData;
+};
+
+function DeadlineEditorModal({
+  isOpen,
+  onClose,
+  onSave,
+  onDelete,
+  deadline,
+  data
+}: DeadlineEditorModalProps) {
+  const [title, setTitle] = useState("");
+  const [dueAt, setDueAt] = useState("");
+  const [severity, setSeverity] = useState("medium");
+  const [status, setStatus] = useState("active");
+  const [goalId, setGoalId] = useState("");
+  const [projectId, setProjectId] = useState("");
+  const [taskId, setTaskId] = useState("");
+
+  const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const allGoals = data.goals || [];
+  const allProjects = data.goals ? data.goals.flatMap((g: any) => g.projects || []) : [];
+  const allTasks = data.tasks
+    ? [...(data.tasks.open || []), ...(data.tasks.inbox || []), ...(data.tasks.today || [])]
+    : [];
+
+  useEffect(() => {
+    if (isOpen) {
+      if (deadline) {
+        setTitle(deadline.title || "");
+        setDueAt(deadline.due_at ? deadline.due_at.slice(0, 16) : "");
+        setSeverity(deadline.severity || "medium");
+        setStatus(deadline.status || "active");
+        setGoalId(deadline.goal_id || "");
+        setProjectId(deadline.project_id || "");
+        setTaskId(deadline.task_id || "");
+      } else {
+        setTitle("");
+        const todayStr = new Date().toISOString().slice(0, 16);
+        setDueAt(todayStr);
+        setSeverity("medium");
+        setStatus("active");
+        setGoalId("");
+        setProjectId("");
+        setTaskId("");
+      }
+      setErrorMsg("");
+    }
+  }, [isOpen, deadline]);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setErrorMsg("");
+
+    const dueIso = `${dueAt}:00+07:00`;
+    const payload = {
+      title,
+      due_at: dueIso,
+      severity,
+      status,
+      goal_id: goalId || null,
+      project_id: projectId || null,
+      task_id: taskId || null
+    };
+
+    try {
+      await onSave(payload);
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to save deadline.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(33, 47, 39, 0.4)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 2000,
+        padding: "16px",
+        backdropFilter: "blur(4px)"
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: "var(--bg)",
+          border: "1px solid var(--line)",
+          borderRadius: "var(--radius)",
+          maxWidth: "480px",
+          width: "100%",
+          maxHeight: "calc(100vh - 40px)",
+          overflowY: "auto",
+          boxShadow: "0 20px 40px rgba(33, 47, 39, 0.08)",
+          display: "flex",
+          flexDirection: "column",
+          padding: "24px"
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1 }}>
+            <Radar size={20} style={{ color: "var(--accent)" }} />
+            <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 700 }}>
+              {deadline ? "Chỉnh sửa deadline" : "Thêm deadline mới"}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", padding: "4px" }}
+          >
+            <X size={20} />
+          </button>
+        </header>
+
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {errorMsg && (
+            <div className="settings-alert-error" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <AlertTriangle size={16} />
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
+          <div>
+            <label className="settings-label" htmlFor="dl-title">Tiêu đề</label>
+            <input
+              id="dl-title"
+              type="text"
+              className="settings-input"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+            />
+          </div>
+
+          <div>
+            <label className="settings-label" htmlFor="dl-due">Thời hạn (due_at)</label>
+            <input
+              id="dl-due"
+              type="datetime-local"
+              className="settings-input"
+              value={dueAt}
+              onChange={(e) => setDueAt(e.target.value)}
+              required
+            />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <div>
+              <label className="settings-label" htmlFor="dl-severity">Mức độ nghiêm trọng</label>
+              <select
+                id="dl-severity"
+                className="settings-input"
+                value={severity}
+                onChange={(e) => setSeverity(e.target.value)}
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+            <div>
+              <label className="settings-label" htmlFor="dl-status">Trạng thái</label>
+              <select
+                id="dl-status"
+                className="settings-input"
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+              >
+                <option value="active">Active</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="settings-label" htmlFor="dl-goal">Liên kết Mục tiêu (Goal)</label>
+            <select
+              id="dl-goal"
+              className="settings-input"
+              value={goalId}
+              onChange={(e) => setGoalId(e.target.value)}
+            >
+              <option value="">-- Không liên kết --</option>
+              {allGoals.map((g: any) => (
+                <option key={g.id} value={g.id}>{g.title}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="settings-label" htmlFor="dl-project">Liên kết Dự án (Project)</label>
+            <select
+              id="dl-project"
+              className="settings-input"
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+            >
+              <option value="">-- Không liên kết --</option>
+              {allProjects.map((p: any) => (
+                <option key={p.id} value={p.id}>{p.title}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="settings-label" htmlFor="dl-task">Liên kết Công việc (Task)</label>
+            <select
+              id="dl-task"
+              className="settings-input"
+              value={taskId}
+              onChange={(e) => setTaskId(e.target.value)}
+            >
+              <option value="">-- Không liên kết --</option>
+              {allTasks.map((t: any) => (
+                <option key={t.id} value={t.id}>{t.title}</option>
+              ))}
+            </select>
+          </div>
+
+          <footer
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginTop: "12px",
+              borderTop: "1px solid var(--line)",
+              paddingTop: "16px"
+            }}
+          >
+            {onDelete && deadline ? (
+              <button
+                type="button"
+                className="row-action"
+                style={{ color: "#c81e1e", display: "flex", alignItems: "center", gap: "4px" }}
+                onClick={() => void onDelete(deadline.id)}
+              >
+                <Trash2 size={14} />
+                <span>Delete</span>
+              </button>
+            ) : (
+              <div />
+            )}
+
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                type="button"
+                className="row-action"
+                onClick={onClose}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="row-action"
+                style={{ backgroundColor: "var(--accent)", color: "#fff" }}
+                disabled={saving}
+              >
+                {saving ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </footer>
+        </form>
+      </div>
+    </div>
   );
 }
 

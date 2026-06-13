@@ -1,4 +1,4 @@
-import type { AppData, AskResponse, NowBriefing, AppSettings, CalendarData } from "./types";
+import type { AppData, AskResponse, NowBriefing, AppSettings, CalendarData, DeadlineRadar } from "./types";
 
 export async function fetchNowBriefing(): Promise<NowBriefing> {
   return requestJson<NowBriefing>("/api/now", "Unable to load HelpMe briefing.");
@@ -238,6 +238,40 @@ export async function deleteTimeBlockApi(timeBlockId: string): Promise<any> {
 function postEmpty<T = unknown>(url: string, errorMessage: string) {
   return requestJson<T>(url, errorMessage, {
     method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({})
+  });
+}
+
+export async function fetchDeadlineRadarApi(): Promise<DeadlineRadar> {
+  return requestJson<DeadlineRadar>("/api/deadlines", "Unable to load deadlines.");
+}
+
+export async function createDeadlineApi(deadline: any): Promise<any> {
+  return requestJson("/api/deadlines", "HelpMe could not create deadline.", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(deadline)
+  });
+}
+
+export async function updateDeadlineApi(deadlineId: string, deadline: any): Promise<any> {
+  return requestJson(`/api/deadlines/${deadlineId}`, "HelpMe could not update deadline.", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(deadline)
+  });
+}
+
+export async function deleteDeadlineApi(deadlineId: string): Promise<any> {
+  return requestJson(`/api/deadlines/${deadlineId}`, "HelpMe could not delete deadline.", {
+    method: "DELETE",
     headers: {
       "Content-Type": "application/json"
     },
