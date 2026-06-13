@@ -218,6 +218,19 @@ export type FocusSession = {
   project_title?: string | null;
 };
 
+export type ApiReminder = {
+  id: string;
+  title: string;
+  remind_at: string;
+  status: "scheduled" | "snoozed" | "completed" | "cancelled";
+  task_id: string | null;
+  deadline_id: string | null;
+  task_title?: string | null;
+  deadline_title?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type TodayData = {
   date: string;
   greeting: string;
@@ -268,6 +281,7 @@ export type TodayData = {
     source: string;
     status: string;
   }>;
+  reminders: ApiReminder[];
 };
 
 export type PlannerScoreBreakdown = {

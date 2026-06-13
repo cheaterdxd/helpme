@@ -13,7 +13,9 @@ import {
   updateSettingsApi,
   createTaskApi,
   updateTaskApi,
-  deleteTaskApi
+  deleteTaskApi,
+  completeReminderApi,
+  snoozeReminderApi
 } from "./api";
 import { AskOrb } from "./components/AskOrb";
 import { AskOverlay } from "./components/AskOverlay";
@@ -192,6 +194,16 @@ export function App() {
     await loadAllData();
   }
 
+  async function handleCompleteReminder(reminderId: string) {
+    await completeReminderApi(reminderId);
+    await loadAllData();
+  }
+
+  async function handleSnoozeReminder(reminderId: string, minutes = 15) {
+    await snoozeReminderApi(reminderId, minutes);
+    await loadAllData();
+  }
+
   return (
     <div className="app-shell">
       <TopBar
@@ -223,6 +235,8 @@ export function App() {
             onCompleteFocus={handleCompleteFocus}
             onUpdateSettings={handleUpdateSettings}
             onEditTask={handleEditTask}
+            onCompleteReminder={handleCompleteReminder}
+            onSnoozeReminder={handleSnoozeReminder}
           />
         )}
       </main>

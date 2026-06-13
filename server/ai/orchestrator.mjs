@@ -25,6 +25,7 @@ const allowedIntents = [
   "daily_review",
   "explain_priority",
   "breakdown_task",
+  "create_reminder",
   "fallback"
 ];
 
@@ -236,6 +237,7 @@ function buildOrchestrationMeta({ runId, mode, status, startedAt, lifecycle, bud
 function inferIntentHint(normalized) {
   if (normalized.includes("inbox") || normalized.includes("organize") || normalized.includes("sap xep viec roi rac")) return "organize_inbox";
   if (normalized.includes("plan") || normalized.includes("ke hoach") || normalized.includes("sap lich") || normalized.includes("xep lich")) return "plan_day";
+  if (normalized.includes("nhac nho") || normalized.includes("reminder") || (normalized.includes("nhac") && !normalized.includes("hoc") && !normalized.includes("task"))) return "create_reminder";
   if (normalized.includes("nhac toi") || normalized.includes("them task") || normalized.includes("tao task") || normalized.includes("add task")) return "create_task";
   if (normalized.includes("doi") || normalized.includes("reschedule") || normalized.includes("move") || normalized.includes("sang ngay mai")) return "reschedule_task";
   if (normalized.includes("deadline") || normalized.includes("han") || normalized.includes("qua han")) return "deadline_radar";

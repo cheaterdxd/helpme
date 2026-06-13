@@ -13,6 +13,8 @@ import { sqlite } from "./client.mjs";
 
 export function getTodayView() {
   const today = getTodayDate();
+  syncAutomaticReminders(today);
+  const { due: dueReminders } = getReminders(today);
   const tasks = selectTasks();
   const deadlines = selectDeadlines();
   const timeBlocks = selectTimeBlocksForDate(today);
@@ -80,7 +82,8 @@ export function getTodayView() {
         source: event.source,
         status: "scheduled"
       }))
-    ].sort((a, b) => a.start.localeCompare(b.start))
+    ].sort((a, b) => a.start.localeCompare(b.start)),
+    reminders: dueReminders
   };
 }
 
@@ -346,7 +349,7 @@ export async function createPlanDayProposal({ availableStart = "20:00", availabl
   };
 }
 
-export function createTaskProposal({ title, dueAt = null, scheduledStart = null, estimatedMinutes = 30, priority = 50 }) {
+export function createTaskProposal({ title, dueAt = null, scheduledStart = null, estimatedMinutes = 30, priority = 50, create_reminder = false }) {
   const scheduledEnd = scheduledStart ? addMinutesIso(scheduledStart, estimatedMinutes) : null;
   const validation = buildCreateTaskValidation({
     title,
@@ -368,6 +371,7 @@ export function createTaskProposal({ title, dueAt = null, scheduledStart = null,
       scheduled_end: scheduledEnd,
       estimated_minutes: estimatedMinutes,
       priority,
+      create_reminder,
       validation
     }
   });
@@ -793,7 +797,25 @@ function applyProposal(intent, payload) {
         now
       );
 
+    if (payload.create_reminder && payload.scheduled_start) {
+      const reminderId = `reminder_${randomUUID()}`;
+      sqlite.prepare(`
+        INSERT INTO reminders (id, title, remind_at, status, task_id, deadline_id, created_at, updated_at)
+        VALUES (?, ?, ?, 'scheduled', ?, NULL, ?, ?)
+      `).run(reminderId, `Bắt đầu công việc: ${payload.title}`, payload.scheduled_start, id, now, now);
+    }
+
     return { task_id: id, validation };
+  }
+
+  if (intent === "create_reminder") {
+    const id = `reminder_${randomUUID()}`;
+    const now = new Date().toISOString();
+    sqlite.prepare(`
+      INSERT INTO reminders (id, title, remind_at, status, task_id, deadline_id, created_at, updated_at)
+      VALUES (?, ?, ?, 'scheduled', NULL, NULL, ?, ?)
+    `).run(id, payload.title, payload.remind_at, now, now);
+    return { reminder_id: id };
   }
 
   if (intent === "reschedule_task") {
@@ -1541,4 +1563,157 @@ export function updateSettings(newSettings) {
     }
   })();
   return getSettings();
+}
+
+export function getCurrentIsoTime() {
+  if (process.env.HELPME_TODAY) {
+    return `${process.env.HELPME_TODAY.slice(0, 10)}T22:00:00+07:00`;
+  }
+  return new Date().toISOString();
+}
+
+function subtractDays(dateStr, days) {
+  const date = new Date(dateStr.slice(0, 10) + "T00:00:00");
+  date.setDate(date.getDate() - days);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function selectReminders() {
+  return sqlite
+    .prepare(
+      `SELECT r.*, t.title AS task_title, d.title AS deadline_title
+       FROM reminders r
+       LEFT JOIN tasks t ON t.id = r.task_id
+       LEFT JOIN deadlines d ON d.id = r.deadline_id
+       ORDER BY r.remind_at ASC`
+    )
+    .all();
+}
+
+export function syncAutomaticReminders(today) {
+  const nowStr = new Date().toISOString();
+
+  // 1. Clear reminders for done/cancelled tasks or completed deadlines
+  sqlite.prepare("DELETE FROM reminders WHERE task_id IN (SELECT id FROM tasks WHERE status IN ('done', 'cancelled'))").run();
+  sqlite.prepare("DELETE FROM reminders WHERE deadline_id IN (SELECT id FROM deadlines WHERE status = 'completed')").run();
+
+  // 2. Sync scheduled tasks
+  const tasks = selectTasks().filter((t) => t.scheduled_start && t.status !== "cancelled" && t.status !== "done");
+  for (const task of tasks) {
+    const existing = sqlite.prepare("SELECT * FROM reminders WHERE task_id = ?").get(task.id);
+    if (!existing) {
+      const id = `reminder_${randomUUID()}`;
+      sqlite.prepare(`
+        INSERT INTO reminders (id, title, remind_at, status, task_id, deadline_id, created_at, updated_at)
+        VALUES (?, ?, ?, 'scheduled', ?, NULL, ?, ?)
+      `).run(id, `Bắt đầu công việc: ${task.title}`, task.scheduled_start, task.id, nowStr, nowStr);
+    } else if (existing.remind_at !== task.scheduled_start || existing.title !== `Bắt đầu công việc: ${task.title}`) {
+      sqlite.prepare("UPDATE reminders SET remind_at = ?, title = ?, updated_at = ? WHERE id = ?")
+        .run(task.scheduled_start, `Bắt đầu công việc: ${task.title}`, nowStr, existing.id);
+    }
+  }
+
+  // 3. Sync deadlines (1 day before at 09:00 AM)
+  const deadlineList = selectDeadlines();
+  for (const dl of deadlineList) {
+    if (!dl.due_at) continue;
+    const remindDate = subtractDays(dl.due_at, 1);
+    const remindAt = `${remindDate}T09:00:00+07:00`;
+    const existing = sqlite.prepare("SELECT * FROM reminders WHERE deadline_id = ?").get(dl.id);
+    if (!existing) {
+      const id = `reminder_${randomUUID()}`;
+      sqlite.prepare(`
+        INSERT INTO reminders (id, title, remind_at, status, task_id, deadline_id, created_at, updated_at)
+        VALUES (?, ?, ?, 'scheduled', NULL, ?, ?, ?)
+      `).run(id, `Hạn chót sắp tới: ${dl.title}`, remindAt, dl.id, nowStr, nowStr);
+    } else if (existing.remind_at !== remindAt || existing.title !== `Hạn chót sắp tới: ${dl.title}`) {
+      sqlite.prepare("UPDATE reminders SET remind_at = ?, title = ?, updated_at = ? WHERE id = ?")
+        .run(remindAt, `Hạn chót sắp tới: ${dl.title}`, nowStr, existing.id);
+    }
+  }
+}
+
+export function getReminders(today = getTodayDate()) {
+  syncAutomaticReminders(today);
+  const nowIso = getCurrentIsoTime();
+  const all = selectReminders();
+
+  const active = all.filter((r) => r.status === "scheduled" || r.status === "snoozed");
+  const due = active.filter((r) => r.remind_at <= nowIso);
+  const upcoming = active.filter((r) => r.remind_at > nowIso);
+
+  return { due, upcoming };
+}
+
+export function createReminder(data) {
+  const id = `reminder_${randomUUID()}`;
+  const now = new Date().toISOString();
+  const title = data.title || "Nhắc nhở";
+  const remindAt = data.remind_at || now;
+  const taskId = data.task_id || null;
+  const deadlineId = data.deadline_id || null;
+  const status = data.status || "scheduled";
+
+  sqlite
+    .prepare(
+      `INSERT INTO reminders (id, title, remind_at, status, task_id, deadline_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(id, title, remindAt, status, taskId, deadlineId, now, now);
+
+  return { ok: true, reminder: { id, title, remind_at: remindAt, status, task_id: taskId, deadline_id: deadlineId } };
+}
+
+export function updateReminder(reminderId, data) {
+  const existing = sqlite.prepare("SELECT * FROM reminders WHERE id = ?").get(reminderId);
+  if (!existing) {
+    return { ok: false, error: "Reminder not found." };
+  }
+
+  const title = data.title !== undefined ? data.title : existing.title;
+  const remindAt = data.remind_at !== undefined ? data.remind_at : existing.remind_at;
+  const status = data.status !== undefined ? data.status : existing.status;
+  const now = new Date().toISOString();
+
+  sqlite
+    .prepare("UPDATE reminders SET title = ?, remind_at = ?, status = ?, updated_at = ? WHERE id = ?")
+    .run(title, remindAt, status, now, reminderId);
+
+  return { ok: true, reminder: { id: reminderId, title, remind_at: remindAt, status } };
+}
+
+export function deleteReminder(reminderId) {
+  const existing = sqlite.prepare("SELECT * FROM reminders WHERE id = ?").get(reminderId);
+  if (!existing) {
+    return { ok: false, error: "Reminder not found." };
+  }
+
+  sqlite.prepare("DELETE FROM reminders WHERE id = ?").run(reminderId);
+  return { ok: true, reminder_id: reminderId };
+}
+
+export function completeReminder(reminderId) {
+  return updateReminder(reminderId, { status: "completed" });
+}
+
+function toLocalIsoString(date) {
+  const localTime = new Date(date.getTime() + 7 * 60 * 60 * 1000);
+  return localTime.toISOString().replace(/\.\d{3}Z$/, "+07:00").replace(/Z$/, "+07:00");
+}
+
+export function snoozeReminder(reminderId, minutes = 15) {
+  const existing = sqlite.prepare("SELECT * FROM reminders WHERE id = ?").get(reminderId);
+  if (!existing) {
+    return { ok: false, error: "Reminder not found." };
+  }
+
+  const nowIso = getCurrentIsoTime();
+  const date = new Date(nowIso);
+  date.setMinutes(date.getMinutes() + (typeof minutes === "number" ? minutes : 15));
+  const remindAt = toLocalIsoString(date);
+
+  return updateReminder(reminderId, { remind_at: remindAt, status: "snoozed" });
 }

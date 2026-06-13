@@ -126,6 +126,46 @@ export async function deleteTaskApi(taskId: string): Promise<any> {
   });
 }
 
+export async function completeReminderApi(reminderId: string): Promise<any> {
+  return requestJson(`/api/reminders/${reminderId}/complete`, "HelpMe could not complete this reminder.", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({})
+  });
+}
+
+export async function snoozeReminderApi(reminderId: string, minutes = 15): Promise<any> {
+  return requestJson(`/api/reminders/${reminderId}/snooze`, "HelpMe could not snooze this reminder.", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ minutes })
+  });
+}
+
+export async function createReminderApi(reminder: any): Promise<any> {
+  return requestJson("/api/reminders", "HelpMe could not create reminder.", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(reminder)
+  });
+}
+
+export async function deleteReminderApi(reminderId: string): Promise<any> {
+  return requestJson(`/api/reminders/${reminderId}`, "HelpMe could not delete reminder.", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({})
+  });
+}
+
 function postEmpty<T = unknown>(url: string, errorMessage: string) {
   return requestJson<T>(url, errorMessage, {
     method: "POST",

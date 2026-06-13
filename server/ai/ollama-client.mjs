@@ -225,7 +225,7 @@ function formatError(error) {
 }
 
 function mockOllamaResponse(prompt) {
-  const norm = prompt.toLowerCase();
+  const norm = prompt.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
   // 1. Daily planner candidates mock
   if (norm.includes("select the best tasks to schedule for today")) {
@@ -260,7 +260,7 @@ function mockOllamaResponse(prompt) {
   if (norm.includes('user command: "organize inbox"')) {
     return { intent: "organize_inbox", confidence: 0.95 };
   }
-  if (norm.includes('user command: "chia nhỏ task học aws"') || norm.includes('user command: "chia nho task hoc aws"')) {
+  if (norm.includes('user command: "chia nho task hoc aws"')) {
     return {
       intent: "breakdown_task",
       confidence: 0.96,
@@ -314,6 +314,14 @@ function mockOllamaResponse(prompt) {
   }
   if (norm.includes('user command: "deadline"') || norm.includes('user command: "han chot"')) {
     return { intent: "deadline_radar", confidence: 0.95 };
+  }
+  if (norm.includes('user command: "nhac toi uong nuoc sau 15 phut"')) {
+    return {
+      intent: "create_reminder",
+      confidence: 0.95,
+      title: "uống nước",
+      scheduledStart: "2026-06-08T20:15:00+07:00"
+    };
   }
   if (norm.includes('user command: "abcxyz"')) {
     return { intent: "fallback", confidence: 0.2 };

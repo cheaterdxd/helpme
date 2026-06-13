@@ -126,6 +126,10 @@ function ProposalPreview({ proposal }: { proposal: AiActionProposal }) {
     return <BreakdownTaskProposalPreview proposal={proposal} />;
   }
 
+  if (proposal.intent === "create_reminder") {
+    return <ReminderProposalPreview proposal={proposal} />;
+  }
+
   return null;
 }
 
@@ -330,6 +334,27 @@ function BreakdownTaskProposalPreview({ proposal }: { proposal: AiActionProposal
             <small style={{ color: "var(--muted)" }}>Priority {st.priority ?? 55} · {st.estimated_minutes ?? 30}m</small>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function ReminderProposalPreview({ proposal }: { proposal: AiActionProposal }) {
+  const payload = proposal.payload as any;
+  const title = typeof payload.title === "string" ? payload.title : proposal.title;
+  const remindAt = typeof payload.remind_at === "string" ? payload.remind_at : null;
+
+  return (
+    <div className="proposal-preview proposal-reminder" aria-label="Create reminder preview">
+      <div className="proposal-preview-summary">
+        <b>{remindAt ? `${formatDate(remindAt)} / ${formatTime(remindAt)}` : "Right now"}</b>
+        <span>Reminder</span>
+      </div>
+      <div className="proposal-review-row" style={{ marginTop: "8px" }}>
+        <strong>{title}</strong>
+        <small style={{ display: "block", color: "var(--muted)", marginTop: "4px" }}>
+          Sẽ gửi thông báo nhắc nhở vào lúc {remindAt ? `${formatDate(remindAt)} ${formatTime(remindAt)}` : "ngay bây giờ"}.
+        </small>
       </div>
     </div>
   );

@@ -35,6 +35,7 @@ const intentParserJsonSchema = {
         "daily_review",
         "explain_priority",
         "breakdown_task",
+        "create_reminder",
         "fallback"
       ]
     },
@@ -59,6 +60,7 @@ const intentParserValidator = z.object({
     "daily_review",
     "explain_priority",
     "breakdown_task",
+    "create_reminder",
     "fallback"
   ]),
   confidence: z.number().min(0).max(1),
@@ -100,6 +102,7 @@ async function parseIntentWithLlm(message) {
     "- daily_review: user wants to review their day, reflect, or summarize completed work (e.g. \"review cuối ngày\", \"tổng kết\").",
     "- explain_priority: user asks why a task is prioritized or what to do next.",
     "- breakdown_task: user wants to split, divide, or break down a task (e.g. \"chia nhỏ task học AWS\", \"breakdown task AWS\"). Extract title (the name of the task to be broken down).",
+    "- create_reminder: user wants to create/set a simple reminder or notification (e.g. \"nhắc tôi uống nước sau 15 phút\", \"nhắc tôi gọi điện cho mẹ\"). Extract title and scheduledStart (the time to remind, e.g. \"2026-06-08T10:00:00+07:00\").",
     "- fallback: command is empty, unclear, or does not match any other intent.",
     "",
     `User command: "${message}"`
@@ -175,12 +178,14 @@ async function executeAiCommand({ message, normalized }) {
   }
 
   if (parsed.intent === "create_task") {
+    const wantsReminder = normalized.includes("nhac toi") || normalized.includes("nhac nho") || normalized.includes("remind") || normalized.includes("nhac");
     const params = {
       title: parsed.title || "New task",
       dueAt: parsed.scheduledStart || null,
       scheduledStart: parsed.scheduledStart || null,
       estimatedMinutes: parsed.estimatedMinutes || 60,
-      priority: parsed.priority || 55
+      priority: parsed.priority || 55,
+      create_reminder: wantsReminder
     };
     const proposal = createTaskProposal(params);
     const conflictCount = proposal.payload.validation?.conflict_count ?? 0;
@@ -193,6 +198,29 @@ async function executeAiCommand({ message, normalized }) {
         : "I understood the new task. I will only add it to SQLite after confirmation.",
       proposal,
       related_context: params
+    };
+  }
+
+  if (parsed.intent === "create_reminder") {
+    const remindAt = parsed.scheduledStart || new Date().toISOString();
+    const title = parsed.title || "Nhắc nhở";
+    const payload = {
+      title,
+      remind_at: remindAt
+    };
+    const proposal = createActionProposal({
+      intent: "create_reminder",
+      title: `Nhắc nhở: ${title}`,
+      summary: `Đặt nhắc nhở "${title}" vào lúc ${remindAt.replace("T", " ").slice(0, 16)}.`,
+      payload
+    });
+
+    return {
+      mode: "proposal",
+      intent: "create_reminder",
+      answer: `Tôi đã chuẩn bị đề xuất đặt nhắc nhở "${title}" vào lúc ${remindAt.replace("T", " ").slice(0, 16)}. Hãy xác nhận bên dưới.`,
+      proposal,
+      related_context: payload
     };
   }
 

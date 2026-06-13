@@ -15,7 +15,8 @@ import {
   Sparkles,
   Target,
   Timer,
-  Plus
+  Plus,
+  Clock
 } from "lucide-react";
 import { type ReactNode, useState, type FormEvent } from "react";
 import { routeMeta, type Route } from "../navigation";
@@ -36,6 +37,8 @@ type RoutePanelProps = {
   onCompleteFocus: (sessionId: string, completeTask?: boolean) => Promise<void>;
   onUpdateSettings: (settings: Partial<AppSettings>) => Promise<void>;
   onEditTask: (task: ApiTask | null) => void;
+  onCompleteReminder: (reminderId: string) => Promise<void>;
+  onSnoozeReminder: (reminderId: string, minutes?: number) => Promise<void>;
 };
 
 export function RoutePanel({
@@ -49,7 +52,9 @@ export function RoutePanel({
   onStartFocus,
   onCompleteFocus,
   onUpdateSettings,
-  onEditTask
+  onEditTask,
+  onCompleteReminder,
+  onSnoozeReminder
 }: RoutePanelProps) {
   if (error) {
     return (
@@ -80,6 +85,8 @@ export function RoutePanel({
         onStartFocus={onStartFocus}
         onCompleteFocus={onCompleteFocus}
         onEditTask={onEditTask}
+        onCompleteReminder={onCompleteReminder}
+        onSnoozeReminder={onSnoozeReminder}
       />
     );
   }
@@ -98,7 +105,9 @@ function TodayView({
   onCompleteTask,
   onStartFocus,
   onCompleteFocus,
-  onEditTask
+  onEditTask,
+  onCompleteReminder,
+  onSnoozeReminder
 }: {
   data: AppData;
   onCommand: (message: string) => Promise<void>;
@@ -106,6 +115,8 @@ function TodayView({
   onStartFocus: (taskId: string) => Promise<void>;
   onCompleteFocus: (sessionId: string, completeTask?: boolean) => Promise<void>;
   onEditTask: (task: ApiTask | null) => void;
+  onCompleteReminder: (reminderId: string) => Promise<void>;
+  onSnoozeReminder: (reminderId: string, minutes?: number) => Promise<void>;
 }) {
   return (
     <section className="os-view" aria-label="Today">
@@ -117,6 +128,90 @@ function TodayView({
         actionLabel="Plan 20-23"
         onAction={() => onCommand("Hom nay toi ranh tu 20h den 23h, sap lich giup toi")}
       />
+
+      {data.today.reminders && data.today.reminders.length > 0 && (
+        <section className="reminder-container" style={{ display: "flex", flexDirection: "column", gap: "8px", margin: "16px 0" }}>
+          {data.today.reminders.map((reminder) => (
+            <div
+              key={reminder.id}
+              style={{
+                background: "var(--panel)",
+                border: "1px solid var(--line)",
+                borderRadius: "var(--radius)",
+                padding: "12px 16px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "12px",
+                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.02)"
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1 }}>
+                <div
+                  style={{
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "50%",
+                    backgroundColor: "rgba(245, 158, 11, 0.1)",
+                    color: "rgb(245, 158, 11)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center"
+                  }}
+                >
+                  <AlarmClock size={16} />
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: "14px", fontWeight: 600 }}>{reminder.title}</h4>
+                  <small style={{ color: "var(--muted)", fontSize: "12px" }}>
+                    Nhắc nhở lúc: {reminder.remind_at.slice(11, 16)}
+                  </small>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button
+                  type="button"
+                  onClick={() => void onSnoozeReminder(reminder.id)}
+                  style={{
+                    background: "none",
+                    border: "1px solid var(--line)",
+                    borderRadius: "var(--radius)",
+                    padding: "6px 12px",
+                    fontSize: "12px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    color: "var(--muted)"
+                  }}
+                >
+                  <Clock size={12} />
+                  <span>Hoãn 15p</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void onCompleteReminder(reminder.id)}
+                  style={{
+                    background: "var(--accent-tint, rgba(33, 47, 39, 0.05))",
+                    border: "1px solid var(--accent)",
+                    borderRadius: "var(--radius)",
+                    padding: "6px 12px",
+                    fontSize: "12px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    color: "var(--accent)"
+                  }}
+                >
+                  <CheckCircle2 size={12} />
+                  <span>Xong</span>
+                </button>
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
 
       <div className="metric-strip">
         <Metric label="Due" value={data.today.summary.due_today} tone={data.today.summary.due_today ? "warn" : "clear"} />

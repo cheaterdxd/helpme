@@ -312,6 +312,64 @@ async function runSmokeChecks() {
   const breakdownConfirmed = await postJson(`/api/ai/proposals/${breakdown.proposal.id}/confirm`, {});
   assert(breakdownConfirmed.ok === true, "Confirm breakdown proposal should return ok");
   assert(breakdownConfirmed.result?.created_subtasks_count === breakdown.proposal.payload.subtasks.length, "Confirm breakdown should create subtasks");
+
+  // Reminder & Notification Engine checks
+  console.log("Reminder & Notification Engine checks...");
+  const reminders = await getJson("/api/reminders");
+  assert(Array.isArray(reminders.due), "Reminders should include due collection");
+  assert(Array.isArray(reminders.upcoming), "Reminders should include upcoming collection");
+
+  // Verify auto-generated reminder for seeded task (task_helpme_ux is scheduled for 2026-06-08T20:15:00+07:00,
+  // since HELPME_TODAY is 2026-06-08 and getCurrentIsoTime is 2026-06-08T22:00:00+07:00, it should be due!)
+  assert(reminders.due.some(r => r.task_id === "task_helpme_ux"), "Should auto-generate due reminder for task_helpme_ux");
+
+  // Direct reminder CRUD
+  const createdReminderRes = await postJson("/api/reminders", {
+    title: "Drink water",
+    remind_at: "2026-06-08T21:00:00+07:00",
+    status: "scheduled"
+  });
+  assert(createdReminderRes.ok === true, "Direct createReminder should return ok");
+  assert(createdReminderRes.reminder?.id, "Direct created reminder should have ID");
+  const reminderId = createdReminderRes.reminder.id;
+
+  // Verify it is in due list (since T21:00 <= T22:00)
+  const remindersAfterCreate = await getJson("/api/reminders");
+  assert(remindersAfterCreate.due.some(r => r.id === reminderId), "Created reminder should be in due list");
+
+  // Snooze reminder
+  const snoozedRes = await postJson(`/api/reminders/${reminderId}/snooze`, { minutes: 15 });
+  assert(snoozedRes.ok === true, "Snooze reminder should return ok");
+  assert(snoozedRes.reminder?.status === "snoozed", "Snoozed reminder status should be 'snoozed'");
+  // Since we use getCurrentIsoTime() = T22:00:00, snoozing it by 15 mins shifts it to T22:15:00+07:00.
+  // This is > T22:00:00, so it should now be in upcoming list!
+  const remindersAfterSnooze = await getJson("/api/reminders");
+  assert(!remindersAfterSnooze.due.some(r => r.id === reminderId), "Snoozed reminder should not be in due list");
+  assert(remindersAfterSnooze.upcoming.some(r => r.id === reminderId), "Snoozed reminder should be in upcoming list");
+
+  // Complete reminder
+  const completedRes = await postJson(`/api/reminders/${reminderId}/complete`, {});
+  assert(completedRes.ok === true, "Complete reminder should return ok");
+  assert(completedRes.reminder?.status === "completed", "Completed reminder status should be 'completed'");
+
+  const remindersAfterComplete = await getJson("/api/reminders");
+  assert(!remindersAfterComplete.due.some(r => r.id === reminderId), "Completed reminder should not be in due list");
+  assert(!remindersAfterComplete.upcoming.some(r => r.id === reminderId), "Completed reminder should not be in upcoming list");
+
+  // AI command reminder capture
+  console.log("AI reminder capture checks...");
+  const aiReminder = await postJson("/api/ai/command", {
+    message: "nhắc tôi uống nước sau 15 phút"
+  });
+  assert(aiReminder.intent === "create_reminder", "Reminder command should return create_reminder intent");
+  assert(aiReminder.mode === "proposal", "Reminder command should return proposal mode");
+  assertOrchestrated(aiReminder, "create_reminder");
+  assert(aiReminder.proposal?.id, "Reminder command should create proposal");
+  assert(aiReminder.proposal.payload.title === "uống nước", "Reminder title should be 'uống nước'");
+
+  const reminderConfirmed = await postJson(`/api/ai/proposals/${aiReminder.proposal.id}/confirm`, {});
+  assert(reminderConfirmed.ok === true, "Confirm reminder proposal should return ok");
+  assert(reminderConfirmed.result?.reminder_id, "Confirm reminder should return reminder_id");
 }
 
 async function waitForHealth() {

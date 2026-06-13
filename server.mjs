@@ -28,7 +28,13 @@ import {
   updateSettings,
   createTask,
   updateTask,
-  deleteTask
+  deleteTask,
+  getReminders,
+  createReminder,
+  updateReminder,
+  deleteReminder,
+  completeReminder,
+  snoozeReminder
 } from "./server/db/app-queries.mjs";
 import { buildNowBriefing } from "./server/db/now-query.mjs";
 import { seedDatabase } from "./server/db/seed.mjs";
@@ -137,6 +143,55 @@ app.post("/api/focus-sessions/:id/complete", async (request, reply) => {
 });
 
 app.post("/api/inbox/organize", async () => organizeInboxIntoProposal());
+
+app.get("/api/reminders", async () => getReminders());
+
+app.post("/api/reminders", async (request, reply) => {
+  const body = typeof request.body === "object" && request.body !== null ? request.body : {};
+  const result = createReminder(body);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
+
+app.patch("/api/reminders/:id", async (request, reply) => {
+  const reminderId = typeof request.params?.id === "string" ? request.params.id : "";
+  const body = typeof request.body === "object" && request.body !== null ? request.body : {};
+  const result = updateReminder(reminderId, body);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
+
+app.delete("/api/reminders/:id", async (request, reply) => {
+  const reminderId = typeof request.params?.id === "string" ? request.params.id : "";
+  const result = deleteReminder(reminderId);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
+
+app.post("/api/reminders/:id/complete", async (request, reply) => {
+  const reminderId = typeof request.params?.id === "string" ? request.params.id : "";
+  const result = completeReminder(reminderId);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
+
+app.post("/api/reminders/:id/snooze", async (request, reply) => {
+  const reminderId = typeof request.params?.id === "string" ? request.params.id : "";
+  const body = typeof request.body === "object" && request.body !== null ? request.body : {};
+  const result = snoozeReminder(reminderId, body.minutes ?? 15);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
 
 app.get("/api/calendar", async () => getCalendarView());
 
