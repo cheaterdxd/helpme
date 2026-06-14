@@ -94,6 +94,41 @@ export function DynamicViewport({
     await onReloadData();
   };
 
+  const findFullTask = (taskId: string): ApiTask | null => {
+    if (!appData.tasks) return null;
+    const allTasks = [
+      ...(appData.tasks.inbox || []),
+      ...(appData.tasks.today || []),
+      ...(appData.tasks.open || [])
+    ];
+    return allTasks.find(t => t.id === taskId) || null;
+  };
+
+  const handleRescheduleTomorrow = async (taskId: string) => {
+    const fullTask = findFullTask(taskId);
+    if (!fullTask) return;
+    try {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(9, 0, 0, 0); // default to 9:00 AM tomorrow
+      
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const newStart = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T${pad(tomorrow.getHours())}:${pad(tomorrow.getMinutes())}:00+07:00`;
+      
+      const end = new Date(tomorrow);
+      end.setMinutes(end.getMinutes() + (fullTask.estimated_minutes || 30));
+      const newEnd = `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}T${pad(end.getHours())}:${pad(end.getMinutes())}:00+07:00`;
+
+      await updateTaskApi(fullTask.id, {
+        scheduled_start: newStart,
+        scheduled_end: newEnd
+      });
+      await onReloadData();
+    } catch (err: any) {
+      alert(err.message || "Failed to reschedule task.");
+    }
+  };
+
   const handleTaskDelete = async (taskId: string) => {
     if (confirm("Bạn chắc chắn muốn xóa công việc này?")) {
       await deleteTaskApi(taskId);
@@ -561,10 +596,102 @@ export function DynamicViewport({
             <span>Tiêu điểm làm việc được đề xuất</span>
           </div>
           <h3 className="focus-title">{suggested.title}</h3>
+          
+          {(suggested.goal_title || suggested.project_title) && (
+            <div className="focus-meta" style={{ marginBottom: "2px" }}>
+              {suggested.goal_title && <span className="meta-tag">🎯 Goal: {suggested.goal_title}</span>}
+              {suggested.project_title && <span className="meta-tag">📁 Project: {suggested.project_title}</span>}
+            </div>
+          )}
+
           <p className="focus-reason"><strong>Lý do ưu tiên:</strong> {suggested.reason}</p>
+          
+          {suggested.risk_summary && (
+            <p className="focus-reason" style={{ borderLeftColor: "#e53e3e", color: "#742a2a", background: "rgba(255, 235, 235, 0.5)", marginTop: "2px" }}>
+              <strong>Rủi ro:</strong> {suggested.risk_summary}
+            </p>
+          )}
+
           <div className="focus-meta">
             <span className="meta-tag">Thời lượng: {suggested.duration_minutes} phút</span>
             <span className="meta-tag">Độ phù hợp: {suggested.fit_label}</span>
+            <span className="meta-tag priority">🔥 Điểm: {suggested.score}</span>
+          </div>
+
+          <div className="focus-actions">
+            <button 
+              className="focus-action-btn primary"
+              onClick={async () => {
+                const ft = findFullTask(suggested.task_id);
+                if (ft) await handleTaskToggle(ft);
+              }}
+            >
+              <CheckCircle size={14} /> Hoàn thành
+            </button>
+            <button 
+              className="focus-action-btn"
+              onClick={() => {
+                const ft = findFullTask(suggested.task_id);
+                if (ft) onEditTask(ft);
+              }}
+            >
+              <Edit3 size={14} /> Chi tiết
+            </button>
+            <button 
+              className="focus-action-btn"
+              onClick={() => handleRescheduleTomorrow(suggested.task_id)}
+            >
+              <Clock size={14} /> Ngày mai
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Alternatives */}
+      {today?.planner?.alternatives && today.planner.alternatives.length > 0 && (
+        <div className="alternatives-section">
+          <h4 className="alternatives-title">
+            <Sparkles size={12} />
+            <span>Đề xuất thay thế khác</span>
+          </h4>
+          <div className="alternatives-list" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {today.planner.alternatives.map((alt: any) => (
+              <div className="alternative-card" key={alt.task_id}>
+                <div className="alternative-card-left">
+                  <div className="alternative-card-title">{alt.title}</div>
+                  <div className="alternative-card-reason">{alt.reason}</div>
+                </div>
+                <div className="alternative-card-actions">
+                  <button 
+                    className="alternative-action-btn success"
+                    title="Hoàn thành trực tiếp"
+                    onClick={async () => {
+                      const ft = findFullTask(alt.task_id);
+                      if (ft) await handleTaskToggle(ft);
+                    }}
+                  >
+                    <CheckCircle2 size={14} />
+                  </button>
+                  <button 
+                    className="alternative-action-btn"
+                    title="Xem chi tiết"
+                    onClick={() => {
+                      const ft = findFullTask(alt.task_id);
+                      if (ft) onEditTask(ft);
+                    }}
+                  >
+                    <Edit3 size={14} />
+                  </button>
+                  <button 
+                    className="alternative-action-btn"
+                    title="Lùi sang ngày mai"
+                    onClick={() => handleRescheduleTomorrow(alt.task_id)}
+                  >
+                    <Clock size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

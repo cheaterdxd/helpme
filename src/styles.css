@@ -3245,6 +3245,180 @@ p {
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
+/* Suggested Focus Redesign & Alternatives */
+.suggested-focus-panel {
+  background: linear-gradient(135deg, rgba(248, 255, 216, 0.95), rgba(225, 245, 111, 0.95));
+  border: 1px solid var(--ai-highlight-line);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 8px 24px rgba(145, 169, 63, 0.2);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.suggested-focus-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+
+.suggested-focus-panel .focus-reason {
+  font-size: 13.5px;
+  color: #3b4d18;
+  margin: 0;
+  line-height: 1.5;
+  background: rgba(255, 255, 255, 0.4);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border-left: 3px solid var(--accent);
+}
+
+.suggested-focus-panel .focus-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.suggested-focus-panel .focus-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.suggested-focus-panel .focus-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid rgba(0,0,0,0.1);
+  background: white;
+  color: var(--ink);
+  transition: all 0.2s ease;
+}
+
+.suggested-focus-panel .focus-action-btn:hover {
+  background: var(--ink);
+  color: white;
+  transform: translateY(-1px);
+}
+
+.suggested-focus-panel .focus-action-btn.primary {
+  background: var(--accent);
+  color: white;
+  border-color: transparent;
+}
+
+.suggested-focus-panel .focus-action-btn.primary:hover {
+  background: #153830;
+  box-shadow: 0 2px 6px rgba(21, 56, 48, 0.2);
+}
+
+.suggested-focus-panel .focus-action-btn.danger:hover {
+  background: #c53030;
+  border-color: transparent;
+  color: white;
+}
+
+/* Alternatives section */
+.alternatives-section {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.alternatives-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.alternative-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--panel-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  transition: all 0.2s ease;
+}
+
+.alternative-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.alternative-card-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.alternative-card-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.alternative-card-reason {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.alternative-card-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.alternative-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.alternative-action-btn:hover {
+  background: var(--ink);
+  color: white;
+  border-color: transparent;
+}
+
+.alternative-action-btn.success:hover {
+  background: #2f855a;
+  color: white;
+  border-color: transparent;
+}
+
+
 
 
 

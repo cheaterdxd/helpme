@@ -22,14 +22,14 @@ export function createPlannerDecision({ tasks, deadlines, today = getLocalDate()
 export function rankTasks({ tasks, deadlines, today = getLocalDate(), availableMinutes = 90 }) {
   return tasks
     .filter((task) => PLANNABLE_TASK_STATUSES.includes(task.status))
-    .map((task) => scoreTask({ task, deadlines, today, availableMinutes }))
+    .map((task) => scoreTask({ task, deadlines, today, availableMinutes, allTasks: tasks }))
     .sort((a, b) => {
       if (b.total_score !== a.total_score) return b.total_score - a.total_score;
       return String(a.created_at ?? "").localeCompare(String(b.created_at ?? ""));
     });
 }
 
-export function scoreTask({ task, deadlines, today, availableMinutes }) {
+export function scoreTask({ task, deadlines, today, availableMinutes, allTasks = [] }) {
   const linkedDeadline = findLinkedDeadline(task, deadlines);
   const dueDateScore = task.due_at ? scoreDatePressure(task.due_at, today) : 0;
   const deadlineScore = linkedDeadline ? scoreDeadlinePressure(linkedDeadline, today) : 0;
@@ -38,7 +38,19 @@ export function scoreTask({ task, deadlines, today, availableMinutes }) {
   const goalImportance = Number(task.is_north_star) ? 18 : Math.min(Math.round((task.goal_priority ?? 0) / 6), 16);
   const scheduledToday = isSameDate(task.scheduled_start, today) ? 12 : 0;
   const userPriority = task.priority ?? 0;
-  const dependencyUnlock = task.parent_task_id ? -6 : 8;
+
+  // Dependency scoring logic revision:
+  const hasOpenChildren = allTasks.some(
+    (t) => t.parent_task_id === task.id && PLANNABLE_TASK_STATUSES.includes(t.status)
+  );
+  let dependencyUnlock = 0;
+  if (hasOpenChildren) {
+    dependencyUnlock = -25; // Blocked: wait for subtasks first
+  } else if (task.parent_task_id) {
+    dependencyUnlock = 12;  // Actionable subtask: boost to help unlock parent
+  } else {
+    dependencyUnlock = 6;   // Actionable root task
+  }
 
   const score_breakdown = {
     deadline_urgency: Math.max(dueDateScore, deadlineScore),
@@ -135,6 +147,8 @@ function buildReason(task, deadline, breakdown, score) {
   if (breakdown.scheduled_today > 0) reasons.push("it is already planned today");
   if (breakdown.goal_importance >= 12) reasons.push("it supports a high-importance goal");
   if (breakdown.effort_fit > 0) reasons.push("it fits the available focus window");
+  if (breakdown.dependency_unlock === 12) reasons.push("it is an active subtask that unlocks a parent task");
+  if (breakdown.dependency_unlock === -25) reasons.push("it is currently blocked by open subtasks");
   if (!reasons.length) reasons.push("it has the best combined priority signal");
 
   const deadlineText = deadline ? ` and is linked to "${deadline.title}"` : "";
