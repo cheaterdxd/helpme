@@ -572,152 +572,158 @@ export function DynamicViewport({
 
       {today?.greeting && <p className="today-greeting-txt">✨ {today.greeting}</p>}
 
-      {/* Summary stats */}
-      <div className="today-summary-strip">
-        <div className="summary-stat-box">
-          <span className="stat-num">{today?.summary?.open_tasks ?? 0}</span>
-          <span className="stat-lbl">Việc đang mở</span>
-        </div>
-        <div className="summary-stat-box">
-          <span className="stat-num">{today?.summary?.due_today ?? 0}</span>
-          <span className="stat-lbl">Hạn chót hôm nay</span>
-        </div>
-        <div className="summary-stat-box">
-          <span className="stat-num">{today?.summary?.events_today ?? 0}</span>
-          <span className="stat-lbl">Sự kiện hôm nay</span>
-        </div>
-      </div>
-
-      {/* Suggested Focus */}
-      {suggested && (
-        <div className="suggested-focus-panel">
-          <div className="panel-header">
-            <Sparkles size={16} />
-            <span>Tiêu điểm làm việc được đề xuất</span>
+      <div className="today-grid">
+        <div className="today-grid-left">
+          {/* Summary stats */}
+          <div className="today-summary-strip">
+            <div className="summary-stat-box">
+              <span className="stat-num">{today?.summary?.open_tasks ?? 0}</span>
+              <span className="stat-lbl">Việc đang mở</span>
+            </div>
+            <div className="summary-stat-box">
+              <span className="stat-num">{today?.summary?.due_today ?? 0}</span>
+              <span className="stat-lbl">Hạn chót hôm nay</span>
+            </div>
+            <div className="summary-stat-box">
+              <span className="stat-num">{today?.summary?.events_today ?? 0}</span>
+              <span className="stat-lbl">Sự kiện hôm nay</span>
+            </div>
           </div>
-          <h3 className="focus-title">{suggested.title}</h3>
-          
-          {(suggested.goal_title || suggested.project_title) && (
-            <div className="focus-meta" style={{ marginBottom: "2px" }}>
-              {suggested.goal_title && <span className="meta-tag">🎯 Goal: {suggested.goal_title}</span>}
-              {suggested.project_title && <span className="meta-tag">📁 Project: {suggested.project_title}</span>}
+
+          {/* Schedule Timeline */}
+          <div className="timeline-section-panel">
+            <h4 className="section-title">
+              <Clock size={16} />
+              <span>Dòng sự kiện hôm nay</span>
+            </h4>
+            {timeline.length === 0 ? (
+              <div className="cli-empty-state">Hôm nay chưa có lịch trình nào được sắp xếp.</div>
+            ) : (
+              <div className="timeline-flow-list">
+                {timeline.map((item: any, idx: number) => (
+                  <div className="timeline-flow-item" key={item.id || idx}>
+                    <time className="item-time">{item.start.slice(11, 16)} - {item.end.slice(11, 16)}</time>
+                    <div className="item-indicator" data-type={item.type} />
+                    <div className="item-details">
+                      <div className="item-title">{item.title}</div>
+                      <span className={`item-type-badge ${item.type}`}>{item.type}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="today-grid-right">
+          {/* Suggested Focus */}
+          {suggested && (
+            <div className="suggested-focus-panel">
+              <div className="panel-header">
+                <Sparkles size={16} />
+                <span>Tiêu điểm làm việc được đề xuất</span>
+              </div>
+              <h3 className="focus-title">{suggested.title}</h3>
+              
+              {(suggested.goal_title || suggested.project_title) && (
+                <div className="focus-meta" style={{ marginBottom: "2px" }}>
+                  {suggested.goal_title && <span className="meta-tag">🎯 Goal: {suggested.goal_title}</span>}
+                  {suggested.project_title && <span className="meta-tag">📁 Project: {suggested.project_title}</span>}
+                </div>
+              )}
+
+              <p className="focus-reason"><strong>Lý do ưu tiên:</strong> {suggested.reason}</p>
+              
+              {suggested.risk_summary && (
+                <p className="focus-reason" style={{ borderLeftColor: "var(--danger)", color: "#fecaca", background: "rgba(239, 68, 68, 0.1)", marginTop: "2px" }}>
+                  <strong>Rủi ro:</strong> {suggested.risk_summary}
+                </p>
+              )}
+
+              <div className="focus-meta">
+                <span className="meta-tag">Thời lượng: {suggested.duration_minutes} phút</span>
+                <span className="meta-tag">Độ phù hợp: {suggested.fit_label}</span>
+                <span className="meta-tag priority">🔥 Điểm: {suggested.score}</span>
+              </div>
+
+              <div className="focus-actions">
+                <button 
+                  className="focus-action-btn primary"
+                  onClick={async () => {
+                    const ft = findFullTask(suggested.task_id);
+                    if (ft) await handleTaskToggle(ft);
+                  }}
+                >
+                  <CheckCircle size={14} /> Hoàn thành
+                </button>
+                <button 
+                  className="focus-action-btn"
+                  onClick={() => {
+                    const ft = findFullTask(suggested.task_id);
+                    if (ft) onEditTask(ft);
+                  }}
+                >
+                  <Edit3 size={14} /> Chi tiết
+                </button>
+                <button 
+                  className="focus-action-btn"
+                  onClick={() => handleRescheduleTomorrow(suggested.task_id)}
+                >
+                  <Clock size={14} /> Ngày mai
+                </button>
+              </div>
             </div>
           )}
 
-          <p className="focus-reason"><strong>Lý do ưu tiên:</strong> {suggested.reason}</p>
-          
-          {suggested.risk_summary && (
-            <p className="focus-reason" style={{ borderLeftColor: "var(--danger)", color: "#fecaca", background: "rgba(239, 68, 68, 0.1)", marginTop: "2px" }}>
-              <strong>Rủi ro:</strong> {suggested.risk_summary}
-            </p>
+          {/* Alternatives */}
+          {today?.planner?.alternatives && today.planner.alternatives.length > 0 && (
+            <div className="alternatives-section">
+              <h4 className="alternatives-title">
+                <Sparkles size={12} />
+                <span>Đề xuất thay thế khác</span>
+              </h4>
+              <div className="alternatives-list" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {today.planner.alternatives.map((alt: any) => (
+                  <div className="alternative-card" key={alt.task_id}>
+                    <div className="alternative-card-left">
+                      <div className="alternative-card-title">{alt.title}</div>
+                      <div className="alternative-card-reason">{alt.reason}</div>
+                    </div>
+                    <div className="alternative-card-actions">
+                      <button 
+                        className="alternative-action-btn success"
+                        title="Hoàn thành trực tiếp"
+                        onClick={async () => {
+                          const ft = findFullTask(alt.task_id);
+                          if (ft) await handleTaskToggle(ft);
+                        }}
+                      >
+                        <CheckCircle2 size={14} />
+                      </button>
+                      <button 
+                        className="alternative-action-btn"
+                        title="Xem chi tiết"
+                        onClick={() => {
+                          const ft = findFullTask(alt.task_id);
+                          if (ft) onEditTask(ft);
+                        }}
+                      >
+                        <Edit3 size={14} />
+                      </button>
+                      <button 
+                        className="alternative-action-btn"
+                        title="Lùi sang ngày mai"
+                        onClick={() => handleRescheduleTomorrow(alt.task_id)}
+                      >
+                        <Clock size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
-
-          <div className="focus-meta">
-            <span className="meta-tag">Thời lượng: {suggested.duration_minutes} phút</span>
-            <span className="meta-tag">Độ phù hợp: {suggested.fit_label}</span>
-            <span className="meta-tag priority">🔥 Điểm: {suggested.score}</span>
-          </div>
-
-          <div className="focus-actions">
-            <button 
-              className="focus-action-btn primary"
-              onClick={async () => {
-                const ft = findFullTask(suggested.task_id);
-                if (ft) await handleTaskToggle(ft);
-              }}
-            >
-              <CheckCircle size={14} /> Hoàn thành
-            </button>
-            <button 
-              className="focus-action-btn"
-              onClick={() => {
-                const ft = findFullTask(suggested.task_id);
-                if (ft) onEditTask(ft);
-              }}
-            >
-              <Edit3 size={14} /> Chi tiết
-            </button>
-            <button 
-              className="focus-action-btn"
-              onClick={() => handleRescheduleTomorrow(suggested.task_id)}
-            >
-              <Clock size={14} /> Ngày mai
-            </button>
-          </div>
         </div>
-      )}
-
-      {/* Alternatives */}
-      {today?.planner?.alternatives && today.planner.alternatives.length > 0 && (
-        <div className="alternatives-section">
-          <h4 className="alternatives-title">
-            <Sparkles size={12} />
-            <span>Đề xuất thay thế khác</span>
-          </h4>
-          <div className="alternatives-list" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {today.planner.alternatives.map((alt: any) => (
-              <div className="alternative-card" key={alt.task_id}>
-                <div className="alternative-card-left">
-                  <div className="alternative-card-title">{alt.title}</div>
-                  <div className="alternative-card-reason">{alt.reason}</div>
-                </div>
-                <div className="alternative-card-actions">
-                  <button 
-                    className="alternative-action-btn success"
-                    title="Hoàn thành trực tiếp"
-                    onClick={async () => {
-                      const ft = findFullTask(alt.task_id);
-                      if (ft) await handleTaskToggle(ft);
-                    }}
-                  >
-                    <CheckCircle2 size={14} />
-                  </button>
-                  <button 
-                    className="alternative-action-btn"
-                    title="Xem chi tiết"
-                    onClick={() => {
-                      const ft = findFullTask(alt.task_id);
-                      if (ft) onEditTask(ft);
-                    }}
-                  >
-                    <Edit3 size={14} />
-                  </button>
-                  <button 
-                    className="alternative-action-btn"
-                    title="Lùi sang ngày mai"
-                    onClick={() => handleRescheduleTomorrow(alt.task_id)}
-                  >
-                    <Clock size={14} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Schedule Timeline */}
-      <div className="timeline-section-panel">
-        <h4 className="section-title">
-          <Clock size={16} />
-          <span>Dòng sự kiện hôm nay</span>
-        </h4>
-        {timeline.length === 0 ? (
-          <div className="cli-empty-state">Hôm nay chưa có lịch trình nào được sắp xếp.</div>
-        ) : (
-          <div className="timeline-flow-list">
-            {timeline.map((item: any, idx: number) => (
-              <div className="timeline-flow-item" key={item.id || idx}>
-                <time className="item-time">{item.start.slice(11, 16)} - {item.end.slice(11, 16)}</time>
-                <div className="item-indicator" data-type={item.type} />
-                <div className="item-details">
-                  <div className="item-title">{item.title}</div>
-                  <span className={`item-type-badge ${item.type}`}>{item.type}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
