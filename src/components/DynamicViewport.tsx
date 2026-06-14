@@ -607,7 +607,7 @@ export function DynamicViewport({
           <p className="focus-reason"><strong>Lý do ưu tiên:</strong> {suggested.reason}</p>
           
           {suggested.risk_summary && (
-            <p className="focus-reason" style={{ borderLeftColor: "#e53e3e", color: "#742a2a", background: "rgba(255, 235, 235, 0.5)", marginTop: "2px" }}>
+            <p className="focus-reason" style={{ borderLeftColor: "var(--danger)", color: "#fecaca", background: "rgba(239, 68, 68, 0.1)", marginTop: "2px" }}>
               <strong>Rủi ro:</strong> {suggested.risk_summary}
             </p>
           )}

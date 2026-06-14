@@ -1,23 +1,25 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 :root {
-  color-scheme: light;
-  --bg: #edf1ee;
-  --panel: #ffffff;
-  --panel-soft: #f4f7f3;
-  --ink: #1f2421;
-  --muted: #637067;
-  --soft: #8c978f;
-  --line: #d5ded5;
-  --line-strong: #9faca2;
-  --accent: #1d4d42;
-  --accent-2: #315d91;
-  --warning: #b25c2a;
-  --ai-highlight: #e1f56f;
-  --ai-highlight-line: #9bb33e;
-  --shadow: 0 30px 90px rgba(33, 47, 39, 0.12);
-  --radius: 8px;
-  --control: 44px;
+  color-scheme: dark;
+  --bg: #090d16;              /* Midnight Slate Dark */
+  --panel: #111827;           /* Slate Dark / Deep Gray */
+  --panel-soft: #1f2937;      /* Subtle lighter gray for active elements */
+  --ink: #f9fafb;             /* High contrast white */
+  --muted: #9ca3af;           /* Muted Gray */
+  --soft: #6b7280;            /* Medium Gray */
+  --line: #374151;            /* Slate 700 / Dark border line */
+  --line-strong: #4b5563;     /* Active border line */
+  --accent: #0ea5e9;          /* Sky Blue - primary action */
+  --accent-2: #6366f1;        /* Indigo - secondary action */
+  --warning: #f59e0b;         /* Amber - upcoming / warning */
+  --danger: #ef4444;          /* Red - overdue / urgent */
+  --success: #10b981;         /* Green - done / success */
+  --ai-highlight: #d9f99d;    /* Soft lime green highlight */
+  --ai-highlight-line: #a3e635;
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  --radius: 8px;              /* Consistent border radius */
+  --control: 40px;
 }
 
 * {
@@ -32,8 +34,8 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0) 36%),
-    radial-gradient(circle at 82% 8%, rgba(225, 245, 111, 0.28), transparent 24%),
+    radial-gradient(circle at 80% 10%, rgba(99, 102, 241, 0.08), transparent 40%),
+    radial-gradient(circle at 20% 90%, rgba(14, 165, 233, 0.05), transparent 40%),
     var(--bg);
   color: var(--ink);
   font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
@@ -100,9 +102,10 @@ p {
   place-items: center;
   padding: 0;
   border-radius: var(--radius);
-  background: rgba(255, 253, 248, 0.82);
-  box-shadow: 0 16px 48px rgba(48, 43, 34, 0.1);
+  background: rgba(31, 41, 55, 0.7);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(16px);
+  border: 1px solid var(--line);
 }
 
 .icon-button svg {
@@ -1939,17 +1942,17 @@ p {
   align-items: center;
   gap: 10px;
   padding: 16px 20px;
-  background: rgba(26, 32, 29, 0.98);
+  background: rgba(17, 24, 39, 0.98);
   border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .cli-prompt-label {
-  color: #1d4d42;
+  color: var(--accent);
   font-weight: 700;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 15px;
   user-select: none;
-  text-shadow: 0 0 10px rgba(114, 219, 147, 0.2);
+  text-shadow: 0 0 10px rgba(14, 165, 233, 0.2);
 }
 
 /* We override input style for CLI terminal input */
@@ -2057,14 +2060,14 @@ p {
 }
 
 .cli-btn-confirm {
-  background: #1d4d42;
-  border: 1px solid #286053;
-  color: #72db93;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #ffffff;
 }
 
 .cli-btn-confirm:hover:not(:disabled) {
-  background: #245e51;
-  box-shadow: 0 0 12px rgba(114, 219, 147, 0.25);
+  opacity: 0.9;
+  box-shadow: 0 0 12px rgba(14, 165, 233, 0.25);
 }
 
 .cli-btn-reject {
@@ -2666,8 +2669,8 @@ p {
 
 .cli-control-console {
   flex: 3.5; /* 35% height */
-  background: rgba(18, 22, 20, 0.96);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(15, 23, 42, 0.95);
+  border-top: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -3247,14 +3250,14 @@ p {
 
 /* Suggested Focus Redesign & Alternatives */
 .suggested-focus-panel {
-  background: linear-gradient(135deg, rgba(248, 255, 216, 0.95), rgba(225, 245, 111, 0.95));
-  border: 1px solid var(--ai-highlight-line);
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  box-shadow: 0 8px 24px rgba(145, 169, 63, 0.2);
+  box-shadow: var(--shadow);
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
@@ -3272,10 +3275,10 @@ p {
 
 .suggested-focus-panel .focus-reason {
   font-size: 13.5px;
-  color: #3b4d18;
+  color: var(--ink);
   margin: 0;
   line-height: 1.5;
-  background: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.03);
   padding: 8px 12px;
   border-radius: 6px;
   border-left: 3px solid var(--accent);
@@ -3304,15 +3307,15 @@ p {
   font-weight: 600;
   border-radius: 6px;
   cursor: pointer;
-  border: 1px solid rgba(0,0,0,0.1);
-  background: white;
+  border: 1px solid var(--line);
+  background: var(--panel);
   color: var(--ink);
   transition: all 0.2s ease;
 }
 
 .suggested-focus-panel .focus-action-btn:hover {
-  background: var(--ink);
-  color: white;
+  background: var(--panel-soft);
+  border-color: var(--line-strong);
   transform: translateY(-1px);
 }
 
@@ -3323,12 +3326,12 @@ p {
 }
 
 .suggested-focus-panel .focus-action-btn.primary:hover {
-  background: #153830;
-  box-shadow: 0 2px 6px rgba(21, 56, 48, 0.2);
+  opacity: 0.9;
+  box-shadow: 0 2px 6px rgba(14, 165, 233, 0.25);
 }
 
 .suggested-focus-panel .focus-action-btn.danger:hover {
-  background: #c53030;
+  background: var(--danger);
   border-color: transparent;
   color: white;
 }
@@ -3357,15 +3360,15 @@ p {
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  background: var(--panel-bg);
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   transition: all 0.2s ease;
 }
 
 .alternative-card:hover {
-  border-color: var(--accent);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow);
 }
 
 .alternative-card-left {
@@ -3400,7 +3403,7 @@ p {
   height: 28px;
   border-radius: 6px;
   border: 1px solid var(--line);
-  background: var(--bg);
+  background: var(--panel-soft);
   color: var(--muted);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -3408,12 +3411,12 @@ p {
 
 .alternative-action-btn:hover {
   background: var(--ink);
-  color: white;
+  color: var(--bg);
   border-color: transparent;
 }
 
 .alternative-action-btn.success:hover {
-  background: #2f855a;
+  background: var(--success);
   color: white;
   border-color: transparent;
 }
