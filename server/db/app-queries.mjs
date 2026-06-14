@@ -29,6 +29,17 @@ export function getTodayView() {
   const focus = planner.rankings[0] ?? null;
   const overload = buildOverloadSummary(plannedMinutes, availableMinutes, tasks);
 
+  const yesterday = subtractDays(today, 1);
+  const completedYesterday = tasks
+    .filter((task) => task.status === "done" && task.updated_at && task.updated_at.slice(0, 10) === yesterday)
+    .map((task) => ({
+      id: task.id,
+      title: task.title,
+      goal_title: task.goal_title,
+      project_title: task.project_title,
+      completed_at: task.updated_at
+    }));
+
   return {
     date: today,
     greeting: `Good evening, ${getSetting("display_name", "Tuan")}.`,
@@ -86,7 +97,9 @@ export function getTodayView() {
         status: "scheduled"
       }))
     ].sort((a, b) => a.start.localeCompare(b.start)),
-    reminders: dueReminders
+    reminders: dueReminders,
+    completed_yesterday: completedYesterday,
+    goals_progress: getGoalsOverview().filter((g) => g.status === "active")
   };
 }
 
@@ -271,10 +284,16 @@ export function getGoalsOverview() {
       progress: goalTasks.length ? Math.round((completed / goalTasks.length) * 100) : 0,
       projects: projects
         .filter((project) => project.goal_id === goal.id)
-        .map((project) => ({
-          ...project,
-          tasks: goalTasks.filter((task) => task.project_id === project.id)
-        }))
+        .map((project) => {
+          const projectTasks = goalTasks.filter((task) => task.project_id === project.id);
+          const projectCompleted = projectTasks.filter((task) => task.status === "done").length;
+          return {
+            ...project,
+            progress: projectTasks.length ? Math.round((projectCompleted / projectTasks.length) * 100) : 0,
+            tasks_count: projectTasks.length,
+            completed_count: projectCompleted
+          };
+        })
     };
   });
 }

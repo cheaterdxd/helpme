@@ -573,41 +573,102 @@ export function DynamicViewport({
       {today?.greeting && <p className="today-greeting-txt">✨ {today.greeting}</p>}
 
       <div className="today-grid">
+        {/* Left Column: Yesterday Accomplishments & Goals Progress */}
         <div className="today-grid-left">
-          {/* Summary stats */}
-          <div className="today-summary-strip">
-            <div className="summary-stat-box">
-              <span className="stat-num">{today?.summary?.open_tasks ?? 0}</span>
-              <span className="stat-lbl">Việc đang mở</span>
-            </div>
-            <div className="summary-stat-box">
-              <span className="stat-num">{today?.summary?.due_today ?? 0}</span>
-              <span className="stat-lbl">Hạn chót hôm nay</span>
-            </div>
-            <div className="summary-stat-box">
-              <span className="stat-num">{today?.summary?.events_today ?? 0}</span>
-              <span className="stat-lbl">Sự kiện hôm nay</span>
-            </div>
+          {/* Yesterday's Accomplishments */}
+          <div className="completed-yesterday-panel">
+            <h4 className="section-title">
+              <CheckCircle size={16} />
+              <span>Đã hoàn thành hôm qua ({today?.completed_yesterday?.length ?? 0})</span>
+            </h4>
+            {today?.completed_yesterday && today.completed_yesterday.length === 0 ? (
+              <div className="cli-empty-state">Hôm qua chưa có nhiệm vụ nào được hoàn thành.</div>
+            ) : (
+              <div className="completed-yesterday-list" style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "10px" }}>
+                {today?.completed_yesterday?.map((task: any) => (
+                  <div 
+                    className="completed-yesterday-item" 
+                    key={task.id} 
+                    style={{ 
+                      display: "flex", 
+                      alignItems: "center", 
+                      gap: "10px", 
+                      background: "rgba(16, 185, 129, 0.05)", 
+                      padding: "8px 12px", 
+                      borderRadius: "6px", 
+                      border: "1px solid rgba(16, 185, 129, 0.1)" 
+                    }}
+                  >
+                    <CheckCircle2 size={16} style={{ color: "var(--success)", flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: "13px", textDecoration: "line-through", color: "var(--muted)", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>
+                        {task.title}
+                      </div>
+                      <div style={{ fontSize: "11px", color: "var(--soft)", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                        {task.goal_title && <span>🎯 {task.goal_title}</span>}
+                        {task.project_title && <span>📁 {task.project_title}</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Schedule Timeline */}
-          <div className="timeline-section-panel">
+          {/* Goals & Projects Progress */}
+          <div className="goals-progress-panel" style={{ marginTop: "8px" }}>
             <h4 className="section-title">
-              <Clock size={16} />
-              <span>Dòng sự kiện hôm nay</span>
+              <Target size={16} />
+              <span>Tiến độ Mục tiêu & Dự án</span>
             </h4>
-            {timeline.length === 0 ? (
-              <div className="cli-empty-state">Hôm nay chưa có lịch trình nào được sắp xếp.</div>
+            {today?.goals_progress && today.goals_progress.length === 0 ? (
+              <div className="cli-empty-state">Không có mục tiêu nào đang hoạt động.</div>
             ) : (
-              <div className="timeline-flow-list">
-                {timeline.map((item: any, idx: number) => (
-                  <div className="timeline-flow-item" key={item.id || idx}>
-                    <time className="item-time">{item.start.slice(11, 16)} - {item.end.slice(11, 16)}</time>
-                    <div className="item-indicator" data-type={item.type} />
-                    <div className="item-details">
-                      <div className="item-title">{item.title}</div>
-                      <span className={`item-type-badge ${item.type}`}>{item.type}</span>
+              <div className="goals-progress-list" style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "10px" }}>
+                {today?.goals_progress?.map((goal: any) => (
+                  <div 
+                    className="goal-progress-card" 
+                    key={goal.id} 
+                    style={{ 
+                      background: "var(--panel)", 
+                      border: "1px solid var(--line)", 
+                      padding: "12px 16px", 
+                      borderRadius: "var(--radius)" 
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                      <span style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--ink)", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>
+                        🎯 {goal.title}
+                      </span>
+                      <span style={{ fontSize: "11.5px", fontFamily: "JetBrains Mono", fontWeight: 700, color: "var(--accent)" }}>
+                        {goal.progress}%
+                      </span>
                     </div>
+                    {/* Goal Progress bar */}
+                    <div style={{ width: "100%", height: "6px", background: "var(--panel-soft)", borderRadius: "3px", overflow: "hidden", marginBottom: "10px" }}>
+                      <div style={{ width: `${goal.progress}%`, height: "100%", background: "var(--accent)", transition: "width 0.3s ease" }} />
+                    </div>
+                    
+                    {/* Nested Projects */}
+                    {goal.projects && goal.projects.length > 0 && (
+                      <div className="nested-projects-list" style={{ display: "flex", flexDirection: "column", gap: "8px", paddingLeft: "12px", borderLeft: "1px dashed var(--line)" }}>
+                        {goal.projects.map((proj: any) => (
+                          <div key={proj.id} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px" }}>
+                              <span style={{ color: "var(--muted)", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>
+                                📁 {proj.title}
+                              </span>
+                              <span style={{ fontSize: "11px", fontFamily: "JetBrains Mono", color: "var(--muted)" }}>
+                                {proj.progress}%
+                              </span>
+                            </div>
+                            <div style={{ width: "100%", height: "4px", background: "var(--panel-soft)", borderRadius: "2px", overflow: "hidden" }}>
+                              <div style={{ width: `${proj.progress}%`, height: "100%", background: "var(--accent-2)", transition: "width 0.3s ease" }} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -615,6 +676,7 @@ export function DynamicViewport({
           </div>
         </div>
 
+        {/* Right Column: Suggested Focus & Alternatives */}
         <div className="today-grid-right">
           {/* Suggested Focus */}
           {suggested && (

@@ -282,6 +282,33 @@ export type TodayData = {
     status: string;
   }>;
   reminders: ApiReminder[];
+  completed_yesterday?: Array<{
+    id: string;
+    title: string;
+    goal_title?: string | null;
+    project_title?: string | null;
+    completed_at: string;
+  }>;
+  goals_progress?: Array<{
+    id: string;
+    title: string;
+    description?: string | null;
+    status: string;
+    priority: number;
+    is_north_star: boolean | number;
+    progress: number;
+    projects?: Array<{
+      id: string;
+      goal_id: string;
+      title: string;
+      description?: string | null;
+      status: string;
+      priority: number;
+      progress: number;
+      tasks_count: number;
+      completed_count: number;
+    }>;
+  }>;
 };
 
 export type PlannerScoreBreakdown = {
