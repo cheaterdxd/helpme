@@ -10,6 +10,9 @@ import {
   generatePlanWithLlm
 } from "../ai/planner.mjs";
 import { sqlite } from "./client.mjs";
+import { z } from "zod";
+import { runOllamaJson } from "../ai/ollama-client.mjs";
+
 
 export function getTodayView() {
   const today = getTodayDate();
@@ -162,29 +165,92 @@ export function getDeadlineRadar() {
   return groups;
 }
 
-export function getHabitDashboard() {
-  const habits = sqlite
-    .prepare(
-      `SELECT h.id, h.title, h.frequency, h.target_count, h.streak, h.status,
-        COUNT(l.id) AS logged_count
-       FROM habits h
-       LEFT JOIN habit_logs l ON l.habit_id = h.id AND l.log_date >= date('now', '-6 days')
-       WHERE h.status = 'active'
-       GROUP BY h.id
-       ORDER BY h.title ASC`
-    )
-    .all();
+function getMondayOfCurrentWeek(todayDate) {
+  const d = new Date(todayDate + "T00:00:00");
+  const day = d.getDay(); // 0 is Sunday, 1 is Monday, etc.
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const mon = new Date(d.setDate(diff));
+  return mon.toISOString().slice(0, 10);
+}
 
-  return habits.map((habit) => ({
-    id: habit.id,
-    title: habit.title,
-    frequency: habit.frequency,
-    target_count: habit.target_count,
-    streak: habit.streak,
-    logged_count: habit.logged_count,
-    completion_rate: Math.min(Math.round((habit.logged_count / Math.max(habit.target_count, 1)) * 100), 100),
-    insight: buildHabitInsight(habit)
-  }));
+export function calculateDeterministicStreak(habitId, todayDate) {
+  let streak = 0;
+  let cursor = todayDate;
+
+  const hasLog = (date) => {
+    const res = sqlite.prepare("SELECT 1 FROM habit_logs WHERE habit_id = ? AND log_date = ? LIMIT 1").get(habitId, date);
+    return res !== undefined;
+  };
+
+  if (hasLog(cursor)) {
+    streak++;
+    while (true) {
+      cursor = subtractDays(cursor, 1);
+      if (hasLog(cursor)) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+  } else {
+    cursor = subtractDays(cursor, 1);
+    if (hasLog(cursor)) {
+      streak++;
+      while (true) {
+        cursor = subtractDays(cursor, 1);
+        if (hasLog(cursor)) {
+          streak++;
+        } else {
+          break;
+        }
+      }
+    }
+  }
+
+  return streak;
+}
+
+export function getHabitDashboard() {
+  const today = getTodayDate();
+  const monday = getMondayOfCurrentWeek(today);
+  const weekDates = [];
+  for (let i = 0; i < 7; i++) {
+    weekDates.push(addDays(monday, i));
+  }
+
+  const habits = sqlite.prepare("SELECT * FROM habits ORDER BY status ASC, title ASC").all();
+
+  return habits.map((habit) => {
+    const streak = calculateDeterministicStreak(habit.id, today);
+
+    // Sync streak back to DB
+    sqlite.prepare("UPDATE habits SET streak = ? WHERE id = ?").run(streak, habit.id);
+
+    const last7DaysStart = subtractDays(today, 6);
+    const loggedCountObj = sqlite.prepare(`
+      SELECT COUNT(id) AS cnt 
+      FROM habit_logs 
+      WHERE habit_id = ? AND log_date >= ?
+    `).get(habit.id, last7DaysStart);
+    const loggedCount = loggedCountObj ? loggedCountObj.cnt : 0;
+
+    const logs = sqlite.prepare("SELECT log_date FROM habit_logs WHERE habit_id = ?").all(habit.id);
+    const loggedDates = new Set(logs.map(l => l.log_date));
+    const weekly_history = weekDates.map(d => loggedDates.has(d));
+
+    return {
+      id: habit.id,
+      title: habit.title,
+      frequency: habit.frequency,
+      target_count: habit.target_count,
+      streak,
+      status: habit.status,
+      logged_count: loggedCount,
+      completion_rate: Math.min(Math.round((loggedCount / Math.max(habit.target_count, 1)) * 100), 100),
+      weekly_history,
+      insight: buildHabitInsight({ ...habit, logged_count: loggedCount })
+    };
+  });
 }
 
 export function getGoalsOverview() {
@@ -832,6 +898,21 @@ function applyProposal(intent, payload) {
     return { task_id: id, validation };
   }
 
+  if (intent === "create_goal") {
+    const res = createGoal(payload);
+    return res;
+  }
+
+  if (intent === "create_project") {
+    const res = createProject(payload);
+    return res;
+  }
+
+  if (intent === "create_habit") {
+    const res = createHabit(payload);
+    return res;
+  }
+
   if (intent === "create_reminder") {
     const id = `reminder_${randomUUID()}`;
     const now = new Date().toISOString();
@@ -1077,6 +1158,61 @@ function applyProposal(intent, payload) {
       throw new Error(result.error || "Failed to create deadline.");
     }
     return { deadline_id: result.deadline.id };
+  }
+
+  if (intent === "create_routine") {
+    const tasksCreated = [];
+    const timeBlocksCreated = [];
+    const habitsCreated = [];
+
+    if (Array.isArray(payload.tasks)) {
+      for (const t of payload.tasks) {
+        const res = createTask(t);
+        if (res.ok) tasksCreated.push(res.task.id);
+      }
+    }
+    if (Array.isArray(payload.time_blocks)) {
+      for (const tb of payload.time_blocks) {
+        const res = createTimeBlock(tb);
+        if (res.ok) timeBlocksCreated.push(res.time_block.id);
+      }
+    }
+    if (Array.isArray(payload.habits)) {
+      for (const h of payload.habits) {
+        const res = createHabit(h);
+        if (res.ok) habitsCreated.push(res.habit.id);
+      }
+    }
+
+    return {
+      tasks_count: tasksCreated.length,
+      time_blocks_count: timeBlocksCreated.length,
+      habits_count: habitsCreated.length
+    };
+  }
+
+  if (intent === "breakdown_goal") {
+    const tasksCreated = [];
+    const projectsCreated = [];
+
+    if (Array.isArray(payload.projects)) {
+      for (const p of payload.projects) {
+        const res = createProject(p);
+        if (res.ok) projectsCreated.push(res.project.id);
+      }
+    }
+
+    if (Array.isArray(payload.tasks)) {
+      for (const t of payload.tasks) {
+        const res = createTask(t);
+        if (res.ok) tasksCreated.push(res.task.id);
+      }
+    }
+
+    return {
+      projects_count: projectsCreated.length,
+      tasks_count: tasksCreated.length
+    };
   }
 
   return { ignored: true };
@@ -1625,9 +1761,17 @@ function minutesToTime(value) {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
+function toLocalIsoString(date) {
+  const localTime = new Date(date.getTime() + 7 * 60 * 60 * 1000);
+  return localTime.toISOString().replace(/\.\d{3}Z$/, "+07:00").replace(/Z$/, "+07:00");
+}
+
 function addMinutesIso(value, minutes) {
   const date = new Date(value);
   date.setMinutes(date.getMinutes() + minutes);
+  if (typeof value === "string" && value.includes("+07:00")) {
+    return toLocalIsoString(date);
+  }
   return date.toISOString();
 }
 
@@ -1804,16 +1948,7 @@ export function completeReminder(reminderId) {
   return updateReminder(reminderId, { status: "completed" });
 }
 
-function toLocalIsoString(date) {
-  const localTime = new Date(date.getTime() + 7 * 60 * 60 * 1000);
-  return localTime.toISOString().replace(/\.\d{3}Z$/, "+07:00").replace(/Z$/, "+07:00");
-}
-
-function addMinutesIso(value, minutes) {
-  const date = new Date(value);
-  date.setMinutes(date.getMinutes() + minutes);
-  return toLocalIsoString(date);
-}
+// Utilities consolidated above
 
 export function snoozeReminder(reminderId, minutes = 15) {
   const existing = sqlite.prepare("SELECT * FROM reminders WHERE id = ?").get(reminderId);
@@ -2063,4 +2198,356 @@ export function deleteDeadline(deadlineId) {
 
   return { ok: true, deadline_id: deadlineId };
 }
+
+export function createHabit(data) {
+  const title = data.title || "Thói quen mới";
+  const frequency = data.frequency || "daily";
+  const targetCount = typeof data.target_count === "number" ? data.target_count : 1;
+  const status = data.status || "active";
+
+  const id = `habit_${randomUUID()}`;
+  const now = new Date().toISOString();
+  sqlite
+    .prepare(
+      `INSERT INTO habits (id, title, frequency, target_count, streak, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 0, ?, ?, ?)`
+    )
+    .run(id, title, frequency, targetCount, status, now, now);
+
+  return { ok: true, habit: { id, title, frequency, target_count: targetCount, streak: 0, status } };
+}
+
+export function updateHabit(habitId, data) {
+  const existing = sqlite.prepare("SELECT * FROM habits WHERE id = ?").get(habitId);
+  if (!existing) {
+    return { ok: false, error: "Habit not found." };
+  }
+
+  const title = data.title !== undefined ? data.title : existing.title;
+  const frequency = data.frequency !== undefined ? data.frequency : existing.frequency;
+  const targetCount = data.target_count !== undefined ? data.target_count : existing.target_count;
+  const status = data.status !== undefined ? data.status : existing.status;
+
+  const now = new Date().toISOString();
+  sqlite
+    .prepare(
+      `UPDATE habits
+       SET title = ?, frequency = ?, target_count = ?, status = ?, updated_at = ?
+       WHERE id = ?`
+    )
+    .run(title, frequency, targetCount, status, now, habitId);
+
+  const streak = calculateDeterministicStreak(habitId, getTodayDate());
+  sqlite.prepare("UPDATE habits SET streak = ? WHERE id = ?").run(streak, habitId);
+
+  return { ok: true, habit: { id: habitId, title, frequency, target_count: targetCount, streak, status } };
+}
+
+export function deleteHabit(habitId) {
+  const existing = sqlite.prepare("SELECT * FROM habits WHERE id = ?").get(habitId);
+  if (!existing) {
+    return { ok: false, error: "Habit not found." };
+  }
+
+  sqlite.prepare("DELETE FROM habits WHERE id = ?").run(habitId);
+  sqlite.prepare("DELETE FROM habit_logs WHERE habit_id = ?").run(habitId);
+
+  return { ok: true, habit_id: habitId };
+}
+
+export async function getHabitsInsight() {
+  const habits = getHabitDashboard();
+  const activeHabits = habits.filter(h => h.status === "active");
+
+  if (activeHabits.length === 0) {
+    return "Bạn chưa có thói quen hoạt động nào. Hãy thêm thói quen mới để AI phân tích.";
+  }
+
+  const performanceText = activeHabits
+    .map(h => `- "${h.title}": Hoàn thành ${h.logged_count}/${h.target_count} lần tuần này, chuỗi liên tiếp (streak) là ${h.streak} ngày.`)
+    .join("\n");
+
+  const prompt = [
+    "You are the Habit Analyst for HelpMe, a personal operating system.",
+    "Analyze the user's habit performance for this week and write a short, motivational, and constructive insight in Vietnamese (max 2-3 sentences).",
+    "Identify which habits are doing well and which ones might need scheduling or extra attention. Speak directly to the user (use 'Bạn').",
+    "",
+    "Habits performance:",
+    performanceText
+  ].join("\n");
+
+  try {
+    const result = await runOllamaJson({
+      prompt,
+      schema: {
+        type: "object",
+        properties: {
+          insight: { type: "string" }
+        },
+        required: ["insight"]
+      },
+      validator: z.object({
+        insight: z.string().trim()
+      }),
+      timeoutMs: 300000
+    });
+
+    if (result.ok) {
+      return result.value.insight;
+    }
+  } catch (e) {
+    // fallback
+  }
+
+  const lowHabits = activeHabits.filter(h => h.logged_count < h.target_count);
+  if (lowHabits.length > 0) {
+    return `Bạn đang thực hiện tốt các thói quen, tuy nhiên thói quen "${lowHabits[0].title}" đang dưới mục tiêu đề ra. Hãy sắp xếp lại thời gian để thực hiện.`;
+  }
+  return "Tất cả thói quen của bạn đang tiến triển rất tốt. Hãy duy trì phong độ này!";
+}
+
+export function createGoal(data) {
+  const id = `goal_${randomUUID()}`;
+  const title = data.title || "Mục tiêu mới";
+  const description = data.description || null;
+  const status = data.status || "active";
+  const priority = typeof data.priority === "number" ? data.priority : 50;
+  const isNorthStar = data.is_north_star === 1 || data.is_north_star === true || data.isNorthStar === true ? 1 : 0;
+  const now = new Date().toISOString();
+
+  sqlite
+    .prepare(
+      `INSERT INTO goals (id, title, description, status, priority, is_north_star, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(id, title, description, status, priority, isNorthStar, now, now);
+
+  return { ok: true, goal: { id, title, description, status, priority, is_north_star: isNorthStar } };
+}
+
+export function updateGoal(goalId, data) {
+  const existing = sqlite.prepare("SELECT * FROM goals WHERE id = ?").get(goalId);
+  if (!existing) {
+    return { ok: false, error: "Goal not found." };
+  }
+
+  const title = data.title !== undefined ? data.title : existing.title;
+  const description = data.description !== undefined ? data.description : existing.description;
+  const status = data.status !== undefined ? data.status : existing.status;
+  const priority = data.priority !== undefined ? Number(data.priority) : existing.priority;
+  const isNorthStar = data.is_north_star !== undefined ? (data.is_north_star ? 1 : 0) : existing.is_north_star;
+  const now = new Date().toISOString();
+
+  sqlite
+    .prepare(
+      `UPDATE goals
+       SET title = ?, description = ?, status = ?, priority = ?, is_north_star = ?, updated_at = ?
+       WHERE id = ?`
+    )
+    .run(title, description, status, priority, isNorthStar, now, goalId);
+
+  return { ok: true, goal: { id: goalId, title, description, status, priority, is_north_star: isNorthStar } };
+}
+
+export function deleteGoal(goalId) {
+  const existing = sqlite.prepare("SELECT * FROM goals WHERE id = ?").get(goalId);
+  if (!existing) {
+    return { ok: false, error: "Goal not found." };
+  }
+
+  sqlite.prepare("DELETE FROM goals WHERE id = ?").run(goalId);
+  return { ok: true, goal_id: goalId };
+}
+
+export function createProject(data) {
+  const id = `project_${randomUUID()}`;
+  const goalId = data.goal_id || data.goalId;
+  if (!goalId) {
+    return { ok: false, error: "goal_id is required." };
+  }
+  const title = data.title || "Dự án mới";
+  const description = data.description || null;
+  const status = data.status || "active";
+  const priority = typeof data.priority === "number" ? data.priority : 50;
+  const now = new Date().toISOString();
+
+  sqlite
+    .prepare(
+      `INSERT INTO projects (id, goal_id, title, description, status, priority, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(id, goalId, title, description, status, priority, now, now);
+
+  return { ok: true, project: { id, goal_id: goalId, title, description, status, priority } };
+}
+
+export function updateProject(projectId, data) {
+  const existing = sqlite.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
+  if (!existing) {
+    return { ok: false, error: "Project not found." };
+  }
+
+  const title = data.title !== undefined ? data.title : existing.title;
+  const description = data.description !== undefined ? data.description : existing.description;
+  const status = data.status !== undefined ? data.status : existing.status;
+  const priority = data.priority !== undefined ? Number(data.priority) : existing.priority;
+  const goalId = data.goal_id !== undefined ? data.goal_id : (data.goalId !== undefined ? data.goalId : existing.goal_id);
+  const now = new Date().toISOString();
+
+  sqlite
+    .prepare(
+      `UPDATE projects
+       SET goal_id = ?, title = ?, description = ?, status = ?, priority = ?, updated_at = ?
+       WHERE id = ?`
+    )
+    .run(goalId, title, description, status, priority, now, projectId);
+
+  return { ok: true, project: { id: projectId, goal_id: goalId, title, description, status, priority } };
+}
+
+export function deleteProject(projectId) {
+  const existing = sqlite.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
+  if (!existing) {
+    return { ok: false, error: "Project not found." };
+  }
+
+  sqlite.prepare("DELETE FROM projects WHERE id = ?").run(projectId);
+  return { ok: true, project_id: projectId };
+}
+
+export function saveDailyReview(data) {
+  const id = `review_${randomUUID()}`;
+  const reviewDate = data.review_date || getTodayDate();
+  const completedCount = typeof data.completed_count === "number" ? data.completed_count : 0;
+  const unfinishedCount = typeof data.unfinished_count === "number" ? data.unfinished_count : 0;
+  const energyValue = data.energy_value || "medium";
+  const summary = data.summary || "Đánh giá ngày hoàn thành.";
+  const reflection = data.reflection || null;
+  const now = new Date().toISOString();
+
+  sqlite
+    .prepare(
+      `INSERT INTO daily_reviews (id, review_date, completed_count, unfinished_count, energy_value, summary, reflection, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(review_date) DO UPDATE SET
+         completed_count = excluded.completed_count,
+         unfinished_count = excluded.unfinished_count,
+         energy_value = excluded.energy_value,
+         summary = excluded.summary,
+         reflection = excluded.reflection,
+         updated_at = excluded.updated_at`
+    )
+    .run(id, reviewDate, completedCount, unfinishedCount, energyValue, summary, reflection, now, now);
+
+  return { ok: true, review: { id, review_date: reviewDate, completed_count: completedCount, unfinished_count: unfinishedCount, energy_value: energyValue, summary, reflection } };
+}
+
+export function getReviewHistory() {
+  return sqlite.prepare("SELECT * FROM daily_reviews ORDER BY review_date DESC LIMIT 30").all();
+}
+
+export async function generateMorningBrief() {
+  const today = getTodayDate();
+  const view = getTodayView();
+  const habits = getHabitDashboard().filter(h => h.status === "active");
+
+  const overdueDeadlinesText = view.summary.overdue > 0 
+    ? `Có ${view.summary.overdue} hạn chót quá hạn cần hoàn thành gấp.` 
+    : "Không có hạn chót nào quá hạn.";
+  const habitsText = habits.map(h => `- ${h.title}: hoàn thành ${h.logged_count}/${h.target_count} tuần này.`).join("\n");
+  const suggestedFocusText = view.suggested_focus 
+    ? `Đề xuất tập trung: "${view.suggested_focus.title}" (Thời lượng: ${view.suggested_focus.duration_minutes} phút) vì lý do: ${view.suggested_focus.reason}.` 
+    : "Chưa có công việc tiêu điểm được đề xuất.";
+
+  const prompt = [
+    "You are the Morning Assistant for HelpMe, a calm local-first personal operating system.",
+    `Today's date: ${today}. Timezone UTC+07:00.`,
+    "Based on the following data, write a brief, calm, and highly motivational morning greeting and overview in Vietnamese (max 3-4 sentences).",
+    "Focus on telling the user what their main priority is, warning them about deadlines or overdue items, and wishing them a productive day.",
+    "",
+    "Today's data overview:",
+    `- Số sự kiện hôm nay: ${view.summary.events_today}`,
+    `- Số công việc trong inbox: ${view.summary.inbox_count}`,
+    `- Số công việc đang mở: ${view.summary.open_tasks}`,
+    `- Hạn chót: ${overdueDeadlinesText}`,
+    `- Thói quen đang theo dõi:\n${habitsText || "Không có thói quen active"}`,
+    `- ${suggestedFocusText}`
+  ].join("\n");
+
+  try {
+    const result = await runOllamaJson({
+      prompt,
+      schema: {
+        type: "object",
+        properties: {
+          brief: { type: "string" }
+        },
+        required: ["brief"]
+      },
+      validator: z.object({
+        brief: z.string().trim()
+      }),
+      timeoutMs: 300000
+    });
+
+    if (result.ok) {
+      return result.value.brief;
+    }
+  } catch (error) {
+    // Fallback
+  }
+
+  return `Chào buổi sáng! Hôm nay bạn có ${view.summary.open_tasks} công việc cần lưu ý và ${view.summary.events_today} sự kiện lịch trình. ${view.suggested_focus ? `Hãy bắt đầu ngày mới bằng tiêu điểm: "${view.suggested_focus.title}".` : "Hãy sắp xếp công việc hợp lý để có một ngày hiệu quả."}`;
+}
+
+export async function generateProgressCheck() {
+  const goalsOverview = getGoalsOverview();
+  const habits = getHabitDashboard().filter(h => h.status === "active");
+
+  const goalsText = goalsOverview.map(g => {
+    const projText = (g.projects || []).map(p => `  * Dự án: "${p.title}" (độ ưu tiên ${p.priority}, chứa ${p.tasks?.length || 0} việc)`).join("\n");
+    return `- Mục tiêu: "${g.title}" (Tiến độ: ${g.progress}%, Trạng thái: ${g.status})\n${projText}`;
+  }).join("\n");
+
+  const habitsText = habits.map(h => `- Thói quen: "${h.title}" (Tỷ lệ: ${h.completion_rate}%, Chuỗi: ${h.streak} ngày)`).join("\n");
+
+  const prompt = [
+    "You are the Progress Advisor for HelpMe, a personal operating system.",
+    "Evaluate the user's goals, projects, and habit progress.",
+    "Draft a calm, objective, and supportive Vietnamese summary (max 3-4 sentences) explaining whether they are on track, noting any lagging goals/habits, and providing a quick recommendation.",
+    "",
+    "Current Progress Data:",
+    goalsText || "- Không có mục tiêu nào",
+    "",
+    "Habit Performance:",
+    habitsText || "- Không có thói quen nào"
+  ].join("\n");
+
+  try {
+    const result = await runOllamaJson({
+      prompt,
+      schema: {
+        type: "object",
+        properties: {
+          analysis: { type: "string" }
+        },
+        required: ["analysis"]
+      },
+      validator: z.object({
+        analysis: z.string().trim()
+      }),
+      timeoutMs: 300000
+    });
+
+    if (result.ok) {
+      return result.value.analysis;
+    }
+  } catch (error) {
+    // Fallback
+  }
+
+  const completedGoals = goalsOverview.filter(g => g.progress === 100).length;
+  return `Hiện tại bạn có ${goalsOverview.length} mục tiêu đang theo dõi, trong đó có ${completedGoals} mục tiêu đã hoàn thành 100%. Hãy tiếp tục duy trì thực hiện các thói quen hàng ngày để tiến gần hơn tới mục tiêu của mình.`;
+}
+
 

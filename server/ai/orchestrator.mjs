@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { sqlite } from "../db/client.mjs";
 
-const DEFAULT_QUICK_TIMEOUT_MS = 5000;
-const DEFAULT_DEEP_TIMEOUT_MS = 15000;
+const DEFAULT_QUICK_TIMEOUT_MS = 300000;
+const DEFAULT_DEEP_TIMEOUT_MS = 360000;
 const DEFAULT_MAX_STEPS = 6;
-const DEFAULT_MAX_CONTEXT_ITEMS = 24;
+const DEFAULT_MAX_CONTEXT_CHARS = 32000;
 
 function getSetting(key, defaultValue) {
   try {
@@ -26,6 +26,22 @@ const allowedIntents = [
   "explain_priority",
   "breakdown_task",
   "create_reminder",
+  "create_event",
+  "create_time_block",
+  "bulk_reschedule",
+  "create_deadline",
+  "explain_deadline",
+  "create_routine",
+  "morning_brief",
+  "progress_check",
+  "breakdown_goal",
+  "create_goal",
+  "create_project",
+  "create_habit",
+  "list_goals",
+  "list_projects",
+  "list_tasks",
+  "list_habits",
   "fallback"
 ];
 
@@ -53,7 +69,7 @@ export async function orchestrateAiCommand({ rawMessage, execute, requestedMode 
 
     const context = await runStep(lifecycle, "gather_context", () => ({
       locale: "vi-VN",
-      max_context_items: budget.max_context_items,
+      max_context_chars: budget.max_context_chars,
       allowed_intents: allowedIntents,
       input_length: message.length
     }));
@@ -125,7 +141,7 @@ function buildBudget(mode) {
   return {
     timeout_ms: Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : DEFAULT_QUICK_TIMEOUT_MS,
     max_steps: Number(getSetting("max_steps", process.env.HELPME_AI_MAX_STEPS || DEFAULT_MAX_STEPS)),
-    max_context_items: Number(getSetting("max_context_items", process.env.HELPME_AI_MAX_CONTEXT_ITEMS || DEFAULT_MAX_CONTEXT_ITEMS))
+    max_context_chars: Number(getSetting("max_context_chars", process.env.HELPME_AI_MAX_CONTEXT_CHARS || DEFAULT_MAX_CONTEXT_CHARS))
   };
 }
 
@@ -162,7 +178,7 @@ function validatePlan({ plan, context, budget }) {
     throw new OrchestratorError("step_budget_exceeded", "This command needs too many orchestration steps.");
   }
 
-  if (context.allowed_intents.length > budget.max_context_items) {
+  if (context.input_length > budget.max_context_chars) {
     throw new OrchestratorError("context_budget_exceeded", "This command needs too much context.");
   }
 
@@ -237,12 +253,16 @@ function buildOrchestrationMeta({ runId, mode, status, startedAt, lifecycle, bud
 function inferIntentHint(normalized) {
   if (normalized.includes("inbox") || normalized.includes("organize") || normalized.includes("sap xep viec roi rac")) return "organize_inbox";
   if (normalized.includes("plan") || normalized.includes("ke hoach") || normalized.includes("sap lich") || normalized.includes("xep lich")) return "plan_day";
-  if (normalized.includes("nhac nho") || normalized.includes("reminder") || (normalized.includes("nhac") && !normalized.includes("hoc") && !normalized.includes("task"))) return "create_reminder";
-  if (normalized.includes("nhac toi") || normalized.includes("them task") || normalized.includes("tao task") || normalized.includes("add task")) return "create_task";
+  if (normalized.includes("nhac nho") || normalized.includes("reminder") || (normalized.includes("nhac") && !normalized.includes("hoc") && !normalized.includes("task") && !normalized.includes("goal") && !normalized.includes("project"))) return "create_reminder";
+  if (normalized.includes("them muc tieu") || normalized.includes("tao muc tieu") || normalized.includes("set goal") || normalized.includes("dat muc tieu") || normalized.includes("create goal")) return "create_goal";
+  if (normalized.includes("them du an") || normalized.includes("tao du an") || normalized.includes("them project") || normalized.includes("tao project") || normalized.includes("create project")) return "create_project";
+  if (normalized.includes("nhac toi") || normalized.includes("them task") || normalized.includes("tao task") || normalized.includes("add task") || normalized.includes("them cong viec") || normalized.includes("tao cong viec")) return "create_task";
   if (normalized.includes("doi") || normalized.includes("reschedule") || normalized.includes("move") || normalized.includes("sang ngay mai")) return "reschedule_task";
   if (normalized.includes("deadline") || normalized.includes("han") || normalized.includes("qua han")) return "deadline_radar";
   if (normalized.includes("review") || normalized.includes("cuoi ngay") || normalized.includes("tong ket")) return "daily_review";
   if (normalized.includes("chia nho") || normalized.includes("breakdown") || normalized.includes("chia nho task")) return "breakdown_task";
+  if (normalized.includes("them thoi quen") || normalized.includes("tao thoi quen") || normalized.includes("create habit") || normalized.includes("add habit")) return "create_habit";
+  if (normalized.includes("liet ke") || normalized.includes("danh sach") || normalized.includes("list") || normalized.includes("xem tat ca")) return "list_goals";
   return "unknown";
 }
 

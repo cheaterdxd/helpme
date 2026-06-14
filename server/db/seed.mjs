@@ -19,7 +19,8 @@ import {
   reminders,
   settings,
   tasks,
-  timeBlocks
+  timeBlocks,
+  dailyReviews
 } from "./schema.mjs";
 import { db, sqlite } from "./client.mjs";
 import { migrateDatabase } from "./migrate.mjs";
@@ -204,6 +205,7 @@ function clearTables() {
   db.delete(projects).run();
   db.delete(goals).run();
   db.delete(settings).run();
+  db.delete(dailyReviews).run();
 }
 
 function seedSupplementalTasks() {

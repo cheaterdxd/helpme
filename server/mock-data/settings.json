@@ -13,7 +13,7 @@
   "working_window_start": "20:00",
   "working_window_end": "23:00",
   "preferred_model": "qwen3:1.7b",
-  "model_timeout_ms": 3000,
+  "model_timeout_ms": 300000,
   "deep_mode": false,
   "display_name": "Tuan"
 }

@@ -15,14 +15,9 @@ import {
   completeReminderApi,
   snoozeReminderApi
 } from "./api";
-import { AskOrb } from "./components/AskOrb";
-import { AskOverlay } from "./components/AskOverlay";
-import { ContextDrawer } from "./components/ContextDrawer";
-import { NowScreen } from "./components/NowScreen";
-import { RoutePanel } from "./components/RoutePanel";
-import { TopBar } from "./components/TopBar";
+import { DynamicViewport } from "./components/DynamicViewport";
+import { CommandConsole } from "./components/CommandConsole";
 import { TaskEditorModal } from "./components/TaskEditorModal";
-import type { Route } from "./navigation";
 import type { AppData, AskResponse, NowBriefing, AppSettings, ApiTask } from "./types";
 
 export function App() {
@@ -30,50 +25,21 @@ export function App() {
   const [appData, setAppData] = useState<AppData | null>(null);
   const [briefingError, setBriefingError] = useState("");
   const [appError, setAppError] = useState("");
-  const [activeRoute, setActiveRoute] = useState<Route>("now");
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [askOpen, setAskOpen] = useState(false);
-  const [contextOpen, setContextOpen] = useState(false);
-  const [askAnswer, setAskAnswer] = useState<AskResponse | null>(null);
-  const [askPending, setAskPending] = useState(false);
+  const [viewportContext, setViewportContext] = useState<{ intent: string | null; data: any }>({
+    intent: "today",
+    data: null
+  });
   const [isTaskEditorOpen, setIsTaskEditorOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<ApiTask | null>(null);
+  const [pendingCommand, setPendingCommand] = useState<string | null>(null);
 
   useEffect(() => {
     void loadAllData();
   }, []);
 
-  useEffect(() => {
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        closeLayers();
-      }
-    }
-
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, []);
-
-  function closeLayers() {
-    setMenuOpen(false);
-    setAskOpen(false);
-    setContextOpen(false);
-  }
-
-  function showContext() {
-    setMenuOpen(false);
-    setAskOpen(false);
-    setContextOpen(true);
-  }
-
-  function showAsk() {
-    setMenuOpen(false);
-    setContextOpen(false);
-    setAskOpen(true);
-  }
-
   async function loadAllData() {
     const [briefingResult, appDataResult] = await Promise.allSettled([fetchNowBriefing(), fetchAppData()]);
+    let newAppData: AppData | null = null;
 
     if (briefingResult.status === "fulfilled") {
       setBriefing(briefingResult.value);
@@ -83,55 +49,90 @@ export function App() {
     }
 
     if (appDataResult.status === "fulfilled") {
-      setAppData(appDataResult.value);
+      newAppData = appDataResult.value;
+      setAppData(newAppData);
       setAppError("");
     } else {
       setAppError(appDataResult.reason instanceof Error ? appDataResult.reason.message : "Unable to load app data.");
     }
+
+    if (newAppData) {
+      setViewportContext(prev => {
+        if (!prev.data) return prev;
+        
+        // Sync static view data with fresh database records
+        if (Array.isArray(prev.data)) {
+          const updatedData = prev.data.map(item => {
+            if (!item || !item.id) return item;
+            
+            if (prev.intent?.includes("goal")) {
+              const found = newAppData!.goals.find(g => g.id === item.id);
+              return found ? found : item;
+            }
+            if (prev.intent?.includes("project")) {
+              const allProjects = newAppData!.goals.flatMap(g => g.projects || []);
+              const found = allProjects.find(p => p.id === item.id);
+              return found ? found : item;
+            }
+            if (prev.intent?.includes("task")) {
+              const allTasks = [
+                ...(newAppData!.tasks.inbox || []),
+                ...(newAppData!.tasks.today || []),
+                ...(newAppData!.tasks.open || []),
+                ...(newAppData!.tasks.done || [])
+              ];
+              const found = allTasks.find(t => t.id === item.id);
+              return found ? found : item;
+            }
+            if (prev.intent?.includes("habit")) {
+              const found = newAppData!.habits.find(h => h.id === item.id);
+              return found ? found : item;
+            }
+            return item;
+          }).filter(item => {
+            if (!item || !item.id) return true;
+            if (prev.intent?.includes("goal")) {
+              return newAppData!.goals.some(g => g.id === item.id);
+            }
+            if (prev.intent?.includes("project")) {
+              const allProjects = newAppData!.goals.flatMap(g => g.projects || []);
+              return allProjects.some(p => p.id === item.id);
+            }
+            if (prev.intent?.includes("task")) {
+              const allTasks = [
+                ...(newAppData!.tasks.inbox || []),
+                ...(newAppData!.tasks.today || []),
+                ...(newAppData!.tasks.open || []),
+                ...(newAppData!.tasks.done || [])
+              ];
+              return allTasks.some(t => t.id === item.id);
+            }
+            if (prev.intent?.includes("habit")) {
+              return newAppData!.habits.some(h => h.id === item.id);
+            }
+            return true;
+          });
+          
+          return { ...prev, data: updatedData };
+        }
+        
+        return prev;
+      });
+    }
   }
 
   async function handleAsk(message: string) {
-    showAsk();
-    setAskPending(true);
-    try {
-      setAskAnswer(await askHelpMe(message));
-    } finally {
-      setAskPending(false);
-    }
+    setPendingCommand(message);
   }
 
   async function handleConfirmProposal(proposalId: string) {
-    setAskPending(true);
-    try {
-      await confirmProposal(proposalId);
-      await loadAllData();
-      setAskAnswer({
-        mode: "answer",
-        intent: "proposal_confirmed",
-        answer: "Confirmed. HelpMe updated the local SQLite data.",
-        related_context: {},
-        suggested_actions: []
-      });
-    } finally {
-      setAskPending(false);
-    }
+    await confirmProposal(proposalId);
+    await loadAllData();
   }
 
   async function handleRejectProposal(proposalId: string) {
-    setAskPending(true);
-    try {
-      await rejectProposal(proposalId);
-      await loadAllData();
-      setAskAnswer({
-        mode: "answer",
-        intent: "proposal_rejected",
-        answer: "Proposal was cancelled/rejected.",
-        related_context: {},
-        suggested_actions: []
-      });
-    } finally {
-      setAskPending(false);
-    }
+    await rejectProposal(proposalId);
+    await loadAllData();
   }
 
   async function handleCompleteTask(taskId: string) {
@@ -148,8 +149,6 @@ export function App() {
     await logHabitToday(habitId);
     await loadAllData();
   }
-
-
 
   async function handleUpdateSettings(settings: Partial<AppSettings>) {
     await updateSettingsApi(settings);
@@ -195,57 +194,46 @@ export function App() {
   }
 
   return (
-    <div className="app-shell">
-      <TopBar
-        activeRoute={activeRoute}
-        menuOpen={menuOpen}
-        onMenuToggle={() => setMenuOpen((open) => !open)}
-        onRouteChange={(route) => {
-          setActiveRoute(route);
-          closeLayers();
-        }}
+    <div className="app-shell cli-layout">
+      {/* Top Portion: Visual Viewport */}
+      <section className="cli-view-viewport">
+        <header className="cli-viewport-header">
+          <div className="cli-path-indicator">
+            <span className="cli-path-symbol">⚡</span>
+            <span>personal-os://{viewportContext.intent || "today"}</span>
+          </div>
+          <div className="cli-viewport-title">
+            HelpMe OS Dashboard
+          </div>
+        </header>
+        <div className="cli-viewport-content">
+          {appData ? (
+            <DynamicViewport
+              intent={viewportContext.intent}
+              data={viewportContext.data}
+              appData={appData}
+              onReloadData={loadAllData}
+              onCommand={handleAsk}
+              onEditTask={handleEditTask}
+            />
+          ) : (
+            <div className="cli-loading-screen">
+              {appError ? <span className="cli-error-text">{appError}</span> : <span>Đang khởi tạo dữ liệu SQLite & AI Agent...</span>}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Bottom Portion: Command Console */}
+      <CommandConsole
+        onConfirmProposal={handleConfirmProposal}
+        onRejectProposal={handleRejectProposal}
+        onIntentResult={(intent, data) => setViewportContext({ intent, data })}
+        activeIntent={viewportContext.intent}
+        onReloadData={loadAllData}
+        pendingCommand={pendingCommand}
+        clearPendingCommand={() => setPendingCommand(null)}
       />
-
-      <main className="screen">
-        {activeRoute === "now" ? (
-          <NowScreen
-            briefing={briefing}
-            error={briefingError}
-          />
-        ) : (
-          <RoutePanel
-            route={activeRoute}
-            data={appData}
-            error={appError}
-            onCommand={handleAsk}
-            onCompleteTask={handleCompleteTask}
-            onReopenTask={handleReopenTask}
-            onLogHabit={handleLogHabit}
-            onUpdateSettings={handleUpdateSettings}
-            onEditTask={handleEditTask}
-            onCompleteReminder={handleCompleteReminder}
-            onSnoozeReminder={handleSnoozeReminder}
-          />
-        )}
-      </main>
-
-      <AskOrb open={askOpen} onOpen={showAsk} />
-
-      {(askOpen || contextOpen) && <button className="modal-scrim" aria-label="Close overlay" onClick={closeLayers} />}
-
-      {briefing && <ContextDrawer briefing={briefing} open={contextOpen} />}
-
-      {briefing && (
-        <AskOverlay
-          briefing={briefing}
-          open={askOpen}
-          answer={askAnswer}
-          pending={askPending}
-          onAsk={handleAsk}
-          onConfirmProposal={handleConfirmProposal}
-          onRejectProposal={handleRejectProposal}
-        />
-      )}
 
       {appData && (
         <TaskEditorModal
@@ -260,3 +248,4 @@ export function App() {
     </div>
   );
 }
+

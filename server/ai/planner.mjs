@@ -233,7 +233,7 @@ export async function generatePlanWithLlm({ tasks, freeWindows, availableMinutes
     prompt,
     schema,
     validator,
-    timeoutMs: 4000
+    timeoutMs: 300000
   });
 
   if (!result.ok) {

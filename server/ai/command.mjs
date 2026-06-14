@@ -12,10 +12,12 @@ import {
   createActionProposal,
   selectTasks,
   buildCalendarConflictValidation,
-  getGoalsOverview
+  getGoalsOverview,
+  getHabitDashboard
 } from "../db/app-queries.mjs";
 import { runOllamaJson } from "./ollama-client.mjs";
 import { orchestrateAiCommand } from "./orchestrator.mjs";
+import { sqlite } from "../db/client.mjs";
 
 export const aiCommandRequestSchema = z.object({
   message: z.string().trim().min(1)
@@ -26,23 +28,43 @@ export const aiCommandRequestSchema = z.object({
 const intentParserJsonSchema = {
   type: "object",
   properties: {
-    intent: {
+    action: {
       type: "string",
       enum: [
-        "organize_inbox",
-        "plan_day",
-        "create_task",
-        "reschedule_task",
-        "deadline_radar",
+        "create",
+        "list",
+        "search",
+        "delete",
+        "edit",
+        "schedule",
+        "statistics",
+        "breakdown",
+        "explain",
+        "check",
+        "organize",
+        "fallback"
+      ]
+    },
+    object: {
+      type: "string",
+      enum: [
+        "goal",
+        "project",
+        "task",
+        "tasks",
+        "reminder",
+        "event",
+        "time_block",
+        "deadline",
+        "routine",
+        "inbox",
+        "day_plan",
         "daily_review",
-        "explain_priority",
-        "breakdown_task",
-        "create_reminder",
-        "create_event",
-        "create_time_block",
-        "bulk_reschedule",
-        "create_deadline",
-        "explain_deadline",
+        "brief",
+        "progress",
+        "priority",
+        "habit",
+        "habits",
         "fallback"
       ]
     },
@@ -55,27 +77,47 @@ const intentParserJsonSchema = {
     availableStart: { type: "string" },
     availableEnd: { type: "string" },
     location: { type: "string" },
-    severity: { type: "string" }
+    severity: { type: "string" },
+    items: { type: "array", items: { type: "string" } },
+    parentName: { type: "string" },
+    parentType: { type: "string", enum: ["goal", "project"] }
   },
-  required: ["intent", "confidence"]
+  required: ["action", "object", "confidence"]
 };
 
 const intentParserValidator = z.object({
-  intent: z.enum([
-    "organize_inbox",
-    "plan_day",
-    "create_task",
-    "reschedule_task",
-    "deadline_radar",
+  action: z.enum([
+    "create",
+    "list",
+    "search",
+    "delete",
+    "edit",
+    "schedule",
+    "statistics",
+    "breakdown",
+    "explain",
+    "check",
+    "organize",
+    "fallback"
+  ]),
+  object: z.enum([
+    "goal",
+    "project",
+    "task",
+    "tasks",
+    "reminder",
+    "event",
+    "time_block",
+    "deadline",
+    "routine",
+    "inbox",
+    "day_plan",
     "daily_review",
-    "explain_priority",
-    "breakdown_task",
-    "create_reminder",
-    "create_event",
-    "create_time_block",
-    "bulk_reschedule",
-    "create_deadline",
-    "explain_deadline",
+    "brief",
+    "progress",
+    "priority",
+    "habit",
+    "habits",
     "fallback"
   ]),
   confidence: z.number().min(0).max(1),
@@ -87,8 +129,40 @@ const intentParserValidator = z.object({
   availableStart: z.string().optional().nullable(),
   availableEnd: z.string().optional().nullable(),
   location: z.string().optional().nullable(),
-  severity: z.string().optional().nullable()
+  severity: z.string().optional().nullable(),
+  items: z.array(z.string()).optional().nullable(),
+  parentName: z.string().optional().nullable(),
+  parentType: z.enum(["goal", "project"]).optional().nullable()
 });
+
+export function mapActionObjectToIntent(action, object) {
+  if (action === "organize" && object === "inbox") return "organize_inbox";
+  if (action === "schedule" && object === "day_plan") return "plan_day";
+  if (action === "create" && object === "task") return "create_task";
+  if (action === "create" && object === "reminder") return "create_reminder";
+  if (action === "create" && object === "event") return "create_event";
+  if (action === "create" && object === "time_block") return "create_time_block";
+  if (action === "schedule" && object === "task") return "reschedule_task";
+  if (action === "list" && object === "deadline") return "deadline_radar";
+  if (action === "statistics" && object === "daily_review") return "daily_review";
+  if (action === "explain" && object === "priority") return "explain_priority";
+  if (action === "breakdown" && object === "task") return "breakdown_task";
+  if (action === "create" && object === "deadline") return "create_deadline";
+  if (action === "explain" && object === "deadline") return "explain_deadline";
+
+  // New ones for Goals, Projects, Habits:
+  if (action === "create" && object === "goal") return "create_goal";
+  if (action === "create" && object === "project") return "create_project";
+  if (action === "create" && (object === "habit" || object === "habits" || object === "routine")) return "create_habit";
+  if (action === "breakdown" && object === "goal") return "breakdown_goal";
+  
+  if (action === "list" && (object === "goal" || object === "goals")) return "list_goals";
+  if (action === "list" && (object === "project" || object === "projects")) return "list_projects";
+  if (action === "list" && (object === "task" || object === "tasks")) return "list_tasks";
+  if (action === "list" && (object === "habit" || object === "habits")) return "list_habits";
+
+  return "fallback";
+}
 
 export async function handleAiCommand(rawMessage) {
   return orchestrateAiCommand({
@@ -101,32 +175,46 @@ async function parseIntentWithLlm(message) {
   const today = getTodayDate();
   const prompt = [
     "You are the intent parser for HelpMe, a calm local-first personal operating system.",
-    "Analyze the user's command in Vietnamese or English and extract the intent and fields.",
+    "Analyze the user's command in Vietnamese or English and extract the action, object, and fields.",
     "Return JSON only conforming to the schema.",
     "",
     `Today is: ${today} (Timezone UTC+07:00, Vietnam Standard Time)`,
     "",
-    "Allowed Intents:",
-    "- organize_inbox: user wants to group, sort, clean up, or organize inbox tasks (e.g. \"sắp xếp việc rời rạc\", \"organize inbox\").",
-    "- plan_day: user wants to plan the day or schedule time slots (e.g. \"lên kế hoạch\", \"xếp lịch 20h đến 23h\"). Extract availableStart (default \"20:00\") and availableEnd (default \"23:00\").",
-    "- create_task: user wants to add/create a new task or set a reminder (e.g. \"nhắc tôi 20h học AWS 1h\").",
-    "  Extract:",
-    "  * title: clean description of the task (exclude verbs like nhac toi/them/tao, and exclude dates/times/durations).",
-    "  * scheduledStart: resolve relative to today (e.g., \"ngày mai 8:30\" becomes \"2026-06-09T08:30:00+07:00\").",
-    "  * estimatedMinutes: task duration (e.g., \"1h\"/\"1 tieng\" -> 60, \"30 phut\" -> 30, default is 60).",
-    "  * priority: 90 if user mentions \"gấp\", \"khẩn cấp\", \"urgent\", \"quan trọng\", otherwise 55.",
-    "- reschedule_task: user wants to move, reschedule, or change time of a task (e.g. \"move sang ngày mai 8:30h\"). Extract scheduledStart.",
-    "- deadline_radar: user asks about deadlines, due dates, or overdue work (e.g. \"hạn chót\", \"deadline\", \"quá hạn\").",
-    "- daily_review: user wants to review their day, reflect, or summarize completed work (e.g. \"review cuối ngày\", \"tổng kết\").",
-    "- explain_priority: user asks why a task is prioritized or what to do next.",
-    "- breakdown_task: user wants to split, divide, or break down a task (e.g. \"chia nhỏ task học AWS\", \"breakdown task AWS\"). Extract title (the name of the task to be broken down).",
-    "- create_reminder: user wants to create/set a simple reminder or notification (e.g. \"nhắc tôi uống nước sau 15 phút\", \"nhắc tôi gọi điện cho mẹ\"). Extract title and scheduledStart (the time to remind, e.g. \"2026-06-08T10:00:00+07:00\").",
-    "- create_event: user wants to add a calendar event or meeting (e.g. \"thêm sự kiện họp nhóm ngày mai 9h đến 10h\", \"tạo event meeting 14:00-15:00\"). Extract title, scheduledStart, scheduledEnd, and location if mentioned.",
-    "- create_time_block: user wants to block time for focused work (e.g. \"block 2 tiếng học AWS tối nay\", \"đặt khung giờ 20h-22h để code\"). Extract title, scheduledStart, scheduledEnd or estimatedMinutes.",
-    "- bulk_reschedule: user wants to move multiple non-urgent/unfinished tasks to another day (e.g. \"dời các task không gấp sang ngày mai\", \"chuyển hết task chưa xong sang mai\").",
-    "- create_deadline: user wants to add/create a new deadline (e.g. \"hạn chót nộp báo cáo là thứ sáu tuần sau lúc 17h\", \"set deadline học AWS ngày mai\"). Extract title, scheduledStart (as the due date/time, e.g. \"2026-06-19T17:00:00+07:00\"), and severity (\"high\" if they mention \"gấp\"/\"quan trọng\"/\"khẩn cấp\", otherwise \"medium\").",
-    "- explain_deadline: user wants to explain, analyze, or detail deadlines or their scheduling pressure (e.g. \"giải thích các hạn chót của tôi\", \"tại sao deadline này gấp\").",
-    "- fallback: command is empty, unclear, or does not match any other intent.",
+    "Allowed Actions:",
+    "- create: user wants to add, create, set a new item.",
+    "- list: user wants to view, list, show items (goals, projects, tasks, habits, deadlines).",
+    "- breakdown: user wants to split, divide, or break down a task or goal.",
+    "- schedule: user wants to move, reschedule, plan, or allocate time slots.",
+    "- organize: user wants to group, sort, clean up, or organize.",
+    "- statistics: user wants to reflection, reflection review or summaries.",
+    "- explain: user wants to know why something is prioritized or analysis.",
+    "- fallback: action is unclear or empty.",
+    "",
+    "Allowed Objects:",
+    "- inbox: inbox tasks or files.",
+    "- day_plan: daily planner / scheduling slots.",
+    "- task / tasks: work items, todos.",
+    "- reminder: simple remind notification.",
+    "- event: calendar event / meeting.",
+    "- time_block: focus block.",
+    "- deadline: due dates.",
+    "- daily_review: end-of-day summary / reflection.",
+    "- priority: task focus / prioritization logic.",
+    "- goal: high-level aspiration / target.",
+    "- project: linked container for tasks.",
+    "- habit / habits: recurring behavior.",
+    "- fallback: object is unclear.",
+    "",
+    "Examples:",
+    "- \"organize inbox\": { \"action\": \"organize\", \"object\": \"inbox\", \"confidence\": 0.95 }",
+    "- \"nhắc tôi 20h học AWS 1h\": { \"action\": \"create\", \"object\": \"task\", \"confidence\": 0.95, \"title\": \"hoc AWS\", \"scheduledStart\": \"2026-06-08T20:00:00+07:00\", \"estimatedMinutes\": 60 }",
+    "- \"tạo goals mới: học dọn dẹp nhà cửa\": { \"action\": \"create\", \"object\": \"goal\", \"confidence\": 0.95, \"title\": \"học dọn dẹp nhà cửa\" }",
+    "- \"thêm thói quen chạy bộ hàng ngày\": { \"action\": \"create\", \"object\": \"habit\", \"confidence\": 0.95, \"title\": \"chạy bộ hàng ngày\" }",
+    "- \"evening review\": { \"action\": \"statistics\", \"object\": \"daily_review\", \"confidence\": 0.95 }",
+    "- \"liệt kê mục tiêu\": { \"action\": \"list\", \"object\": \"goal\", \"confidence\": 0.95 }",
+    "- \"dời sang ngày mai 8:30\": { \"action\": \"schedule\", \"object\": \"task\", \"confidence\": 0.95, \"scheduledStart\": \"2026-06-09T08:30:00+07:00\" }",
+    "- \"thêm 3 project vào goal xây nhà: xây mái, xây tường, xây sân\": { \"action\": \"create\", \"object\": \"project\", \"confidence\": 0.95, \"items\": [\"xây mái\", \"xây tường\", \"xây sân\"], \"parentName\": \"xây nhà\", \"parentType\": \"goal\" }",
+    "- \"tạo goals mới tên: thi chứng chỉ SC-03\": { \"action\": \"create\", \"object\": \"goal\", \"confidence\": 0.95, \"title\": \"thi chứng chỉ SC-03\" }",
     "",
     `User command: "${message}"`
   ].join("\n");
@@ -135,7 +223,7 @@ async function parseIntentWithLlm(message) {
     prompt,
     schema: intentParserJsonSchema,
     validator: intentParserValidator,
-    timeoutMs: 4000
+    timeoutMs: 300000
   });
 
   if (!result.ok) {
@@ -145,11 +233,75 @@ async function parseIntentWithLlm(message) {
   return result.value;
 }
 
+function extractFieldsFromMessage(parsed, message) {
+  const genericTitles = ["mục tiêu mới", "dự án mới", "thói quen mới", "new goal", "new project", "new habit"];
+  
+  // Patch title if generic or missing
+  if (!parsed.title || genericTitles.includes(parsed.title.toLowerCase().trim())) {
+    const titleMatch = message.match(/(?:tạo|thêm|create|add)\s+(?:goals?|mục tiêu|projects?|dự án|habits?|thói quen)\s*(?:mới)?\s*(?:tên)?\s*[:\-]\s*(.*)/i)
+                    || message.match(/(?:tạo|thêm|create|add)\s+(?:goals?|mục tiêu|projects?|dự án|habits?|thói quen)\s*(?:mới)?\s+(.*)/i);
+    if (titleMatch) parsed.title = titleMatch[1].trim();
+  }
+
+  // Patch items if missing — detect comma/semicolon-separated list in message
+  if (!parsed.items || parsed.items.length === 0) {
+    const listMatch = message.match(/[:\-]\s*(.+)/i);
+    if (listMatch) {
+      const candidates = listMatch[1].split(/[,;]\s*/).map(s => s.trim()).filter(s => s.length > 0);
+      if (candidates.length > 1) parsed.items = candidates;
+    }
+  }
+
+  // Patch parentName if missing — detect "vào/cho goal/project X" pattern
+  if (!parsed.parentName) {
+    const parentMatch = message.match(/(?:vào|cho|into|for)\s+(?:goal|mục tiêu|project|dự án)\s+([^:\-,;]+)/i);
+    if (parentMatch) {
+      parsed.parentName = parentMatch[1].trim();
+      if (!parsed.parentType) {
+        parsed.parentType = parentMatch[0].match(/goal|mục tiêu/i) ? "goal" : "project";
+      }
+    }
+  }
+
+  console.log(`\x1b[36m[DEBUG] extractFieldsFromMessage: title="${parsed.title}", items=${JSON.stringify(parsed.items)}, parentName="${parsed.parentName}", parentType="${parsed.parentType}"\x1b[0m`);
+  return parsed;
+}
+
+function findParentByName(parentName, parentType) {
+  if (!parentName) return null;
+  const normalizedName = normalize(parentName);
+  
+  if (parentType === "goal" || !parentType) {
+    const goals = getGoalsOverview();
+    const match = goals.find(g => {
+      const normalizedTitle = normalize(g.title);
+      return normalizedTitle.includes(normalizedName) || normalizedName.includes(normalizedTitle);
+    });
+    if (match) return { id: match.id, title: match.title, type: "goal" };
+  }
+  
+  if (parentType === "project" || !parentType) {
+    const rows = sqlite.prepare("SELECT id, title FROM projects WHERE status != 'archived'").all();
+    const match = rows.find(p => {
+      const normalizedTitle = normalize(p.title);
+      return normalizedTitle.includes(normalizedName) || normalizedName.includes(normalizedTitle);
+    });
+    if (match) return { id: match.id, title: match.title, type: "project" };
+  }
+  
+  return null;
+}
+
 async function executeAiCommand({ message, normalized }) {
   let parsed;
   try {
     parsed = await parseIntentWithLlm(message);
+    parsed.intent = mapActionObjectToIntent(parsed.action, parsed.object);
+    console.log(`\x1b[35m[DEBUG] AI Parsed Intent: action="${parsed.action}", object="${parsed.object}", confidence=${parsed.confidence}\x1b[0m`);
+    console.log(`\x1b[36m[DEBUG] Mapped Intent: "${parsed.intent}"\x1b[0m`);
+    parsed = extractFieldsFromMessage(parsed, message);
   } catch (error) {
+    console.error(`\x1b[31m[DEBUG] Intent parsing error: ${error.message}\x1b[0m`);
     return readOnlyAnswer(
       "fallback",
       "Hệ thống AI cục bộ đang ngoại tuyến hoặc phản hồi chậm. Bạn có thể sử dụng các màn hình trực tiếp để quản lý công việc.",
@@ -157,7 +309,57 @@ async function executeAiCommand({ message, normalized }) {
     );
   }
 
+  const result = await executeAiCommandInner(parsed, message, normalized);
+  if (result && typeof result === "object") {
+    result.action = parsed.action;
+    result.object = parsed.object;
+  }
+  return result;
+}
+
+async function executeAiCommandInner(parsed, message, normalized) {
+  console.log(`\x1b[33m[DEBUG] executeAiCommandInner: Routing to intent handler "${parsed.intent}"\x1b[0m`);
+
+  // Unified bulk creation: if items[] has multiple entries, handle as bulk
+  if (parsed.items && parsed.items.length > 1 && parsed.parentName) {
+    const parent = findParentByName(parsed.parentName, parsed.parentType);
+    if (!parent) {
+      return readOnlyAnswer(
+        "fallback",
+        `Không tìm thấy "${parsed.parentName}" trong hệ thống. Vui lòng tạo trước bằng lệnh "tạo ${parsed.parentType || 'goal'}: ${parsed.parentName}".`,
+        {}
+      );
+    }
+
+    const payload = {
+      projects: parsed.items.map(title => ({
+        title,
+        goal_id: parent.type === "goal" ? parent.id : undefined,
+        project_id: parent.type === "project" ? parent.id : undefined,
+        status: "active",
+        priority: 50
+      })),
+      tasks: []
+    };
+
+    const proposal = createActionProposal({
+      intent: "breakdown_goal",
+      title: `Thêm ${parsed.items.length} mục con vào ${parent.type === "goal" ? "mục tiêu" : "dự án"}: ${parent.title}`,
+      summary: `Tạo hàng loạt: ${parsed.items.join(", ")}.`,
+      payload
+    });
+
+    return {
+      mode: "proposal",
+      intent: "breakdown_goal",
+      answer: `Tôi đã chuẩn bị đề xuất tạo ${parsed.items.length} mục con liên kết với "${parent.title}". Hãy xác nhận bên dưới.`,
+      proposal,
+      related_context: payload
+    };
+  }
+
   if (parsed.confidence < 0.5 || parsed.intent === "fallback") {
+    console.log(`[DEBUG] executeAiCommandInner -> fallback (confidence too low or intent fallback)`);
     return readOnlyAnswer(
       "fallback",
       "Tôi không hiểu rõ câu lệnh của bạn. Bạn có thể làm rõ hoặc viết lại câu lệnh được không? (Ví dụ: 'nhắc tôi ngày mai 8:30 học bài')",
@@ -165,7 +367,129 @@ async function executeAiCommand({ message, normalized }) {
     );
   }
 
+  if (parsed.intent === "create_goal") {
+    const title = parsed.title || "Mục tiêu mới";
+
+    const payload = {
+      title,
+      description: parsed.description || "Tạo qua trợ lý dòng lệnh AI",
+      priority: parsed.priority || 50,
+      is_north_star: parsed.isNorthStar || parsed.is_north_star || false
+    };
+
+    const proposal = createActionProposal({
+      intent: "create_goal",
+      title: `Tạo mục tiêu mới: ${title}`,
+      summary: `Thiết lập mục tiêu chiến lược với mức ưu tiên ${payload.priority}.`,
+      payload
+    });
+
+    return {
+      mode: "proposal",
+      intent: "create_goal",
+      answer: `Tôi đã chuẩn bị đề xuất tạo mục tiêu mới "${title}". Hãy xác nhận bên dưới để hoàn tất lưu vào SQLite.`,
+      proposal,
+      related_context: payload
+    };
+  }
+
+  if (parsed.intent === "create_project") {
+    const title = parsed.title || "Dự án mới";
+
+    let goalId = parsed.goalId || parsed.goal_id;
+    if (!goalId && parsed.parentName) {
+      const parent = findParentByName(parsed.parentName, "goal");
+      if (parent) goalId = parent.id;
+    }
+    if (!goalId) {
+      const goals = getGoalsOverview();
+      const firstGoal = goals.find((g) => g.is_north_star === 1) || goals[0];
+      if (firstGoal) goalId = firstGoal.id;
+    }
+
+    if (!goalId) {
+      return readOnlyAnswer(
+        "fallback",
+        "Tôi không thể tạo dự án vì hệ thống chưa có mục tiêu chiến lược nào. Vui lòng tạo mục tiêu trước.",
+        {}
+      );
+    }
+
+    const payload = {
+      title,
+      goal_id: goalId,
+      description: parsed.description || "Tạo qua trợ lý dòng lệnh AI",
+      priority: parsed.priority || 50
+    };
+
+    const proposal = createActionProposal({
+      intent: "create_project",
+      title: `Tạo dự án mới: ${title}`,
+      summary: `Tạo dự án liên kết với mục tiêu chiến lược.`,
+      payload
+    });
+
+    return {
+      mode: "proposal",
+      intent: "create_project",
+      answer: `Tôi đã chuẩn bị đề xuất tạo dự án mới "${title}". Hãy xác nhận bên dưới.`,
+      proposal,
+      related_context: payload
+    };
+  }
+
+  if (parsed.intent === "create_habit") {
+    const title = parsed.title || "Thói quen mới";
+
+    const payload = {
+      title,
+      frequency: "daily",
+      target_count: 5,
+      status: "active"
+    };
+
+    const proposal = createActionProposal({
+      intent: "create_habit",
+      title: `Tạo thói quen mới: ${title}`,
+      summary: `Thiết lập thói quen rèn luyện hàng ngày.`,
+      payload
+    });
+
+    return {
+      mode: "proposal",
+      intent: "create_habit",
+      answer: `Tôi đã chuẩn bị đề xuất tạo thói quen rèn luyện "${title}". Hãy xác nhận bên dưới.`,
+      proposal,
+      related_context: payload
+    };
+  }
+
+  if (parsed.intent === "list_goals") {
+    console.log(`[DEBUG] executeAiCommandInner -> list_goals: Calling getGoalsOverview()`);
+    const goals = getGoalsOverview();
+    return readOnlyAnswer("list_goals", "Đang chuyển hướng sang màn hình Mục tiêu.", goals);
+  }
+
+  if (parsed.intent === "list_projects") {
+    console.log(`[DEBUG] executeAiCommandInner -> list_projects: Calling getGoalsOverview()`);
+    const goals = getGoalsOverview();
+    return readOnlyAnswer("list_projects", "Đang chuyển hướng sang màn hình Dự án.", goals);
+  }
+
+  if (parsed.intent === "list_tasks") {
+    console.log(`[DEBUG] executeAiCommandInner -> list_tasks: Calling selectTasks()`);
+    const allTasks = selectTasks();
+    return readOnlyAnswer("list_tasks", "Đang chuyển hướng sang màn hình Công việc.", allTasks);
+  }
+
+  if (parsed.intent === "list_habits") {
+    console.log(`[DEBUG] executeAiCommandInner -> list_habits: Calling getHabitDashboard()`);
+    const habits = getHabitDashboard();
+    return readOnlyAnswer("list_habits", "Đang chuyển hướng sang màn hình Thói quen.", habits);
+  }
+
   if (parsed.intent === "organize_inbox") {
+    console.log(`[DEBUG] executeAiCommandInner -> organize_inbox: Calling organizeInboxIntoProposal()`);
     const { actions, groups, proposal } = organizeInboxIntoProposal();
     return {
       mode: "proposal",
@@ -177,6 +501,7 @@ async function executeAiCommand({ message, normalized }) {
   }
 
   if (parsed.intent === "plan_day") {
+    console.log(`[DEBUG] executeAiCommandInner -> plan_day: Calling createPlanDayProposal()`);
     const window = {
       availableStart: parsed.availableStart || "20:00",
       availableEnd: parsed.availableEnd || "23:00"
@@ -201,6 +526,7 @@ async function executeAiCommand({ message, normalized }) {
   }
 
   if (parsed.intent === "create_task") {
+    console.log(`[DEBUG] executeAiCommandInner -> create_task: Calling createTaskProposal()`);
     const wantsReminder = normalized.includes("nhac toi") || normalized.includes("nhac nho") || normalized.includes("remind") || normalized.includes("nhac");
     const params = {
       title: parsed.title || "New task",
@@ -225,6 +551,7 @@ async function executeAiCommand({ message, normalized }) {
   }
 
   if (parsed.intent === "create_reminder") {
+    console.log(`[DEBUG] executeAiCommandInner -> create_reminder: Calling createActionProposal()`);
     const remindAt = parsed.scheduledStart || new Date().toISOString();
     const title = parsed.title || "Nhắc nhở";
     const payload = {
@@ -248,6 +575,7 @@ async function executeAiCommand({ message, normalized }) {
   }
 
   if (parsed.intent === "create_event") {
+    console.log(`[DEBUG] executeAiCommandInner -> create_event: Calling buildCalendarConflictValidation() and createActionProposal()`);
     const title = parsed.title || "Sự kiện mới";
     const startAt = parsed.scheduledStart || `${getTodayDate()}T20:00:00+07:00`;
     const endAt = parsed.scheduledEnd || addMinutesIso(startAt, parsed.estimatedMinutes || 60);
@@ -284,6 +612,7 @@ async function executeAiCommand({ message, normalized }) {
   }
 
   if (parsed.intent === "create_time_block") {
+    console.log(`[DEBUG] executeAiCommandInner -> create_time_block: Calling buildCalendarConflictValidation() and createActionProposal()`);
     const title = parsed.title || "Khung giờ tập trung";
     const startAt = parsed.scheduledStart || `${getTodayDate()}T20:00:00+07:00`;
     const endAt = parsed.scheduledEnd || addMinutesIso(startAt, parsed.estimatedMinutes || 60);
@@ -319,6 +648,7 @@ async function executeAiCommand({ message, normalized }) {
   }
 
   if (parsed.intent === "bulk_reschedule") {
+    console.log(`[DEBUG] executeAiCommandInner -> bulk_reschedule: Calling selectTasks() and createActionProposal()`);
     const today = getTodayDate();
     const tomorrow = addDays(today, 1);
     const allTasks = selectTasks();
@@ -385,6 +715,7 @@ async function executeAiCommand({ message, normalized }) {
   }
 
   if (parsed.intent === "reschedule_task") {
+    console.log(`[DEBUG] executeAiCommandInner -> reschedule_task: Calling getTodayView() and createRescheduleProposal()`);
     const focus = getTodayView().suggested_focus;
     if (!focus) {
       return readOnlyAnswer("reschedule_task", "I could not find a suitable task to reschedule.", {});
@@ -410,6 +741,7 @@ async function executeAiCommand({ message, normalized }) {
   }
 
   if (parsed.intent === "create_deadline") {
+    console.log(`[DEBUG] executeAiCommandInner -> create_deadline: Calling selectTasks(), getGoalsOverview(), and createActionProposal()`);
     const dueAt = parsed.scheduledStart || `${getTodayDate()}T23:59:59+07:00`;
     const title = parsed.title || "Hạn chót mới";
     const severity = parsed.severity || "medium";
@@ -482,7 +814,14 @@ async function executeAiCommand({ message, normalized }) {
     };
   }
 
-  if (parsed.intent === "explain_deadline" || parsed.intent === "deadline_radar") {
+  if (parsed.intent === "deadline_radar") {
+    console.log(`[DEBUG] executeAiCommandInner -> deadline_radar: Calling getDeadlineRadar()`);
+    const radar = getDeadlineRadar();
+    return readOnlyAnswer("deadline_radar", "Đang chuyển hướng sang màn hình Hạn chót.", radar);
+  }
+
+  if (parsed.intent === "explain_deadline") {
+    console.log(`[DEBUG] executeAiCommandInner -> explain_deadline: Calling getDeadlineRadar() and runOllamaJson()`);
     const radar = getDeadlineRadar();
     const today = getTodayDate();
 
@@ -519,7 +858,7 @@ async function executeAiCommand({ message, normalized }) {
         validator: z.object({
           explanation: z.string().trim()
         }),
-        timeoutMs: 4000
+        timeoutMs: 300000
       });
       if (result.ok) {
         explanation = result.value.explanation;
@@ -530,18 +869,19 @@ async function executeAiCommand({ message, normalized }) {
       if (overdueCount || todayCount) {
         explanation = `Bạn đang có ${overdueCount} hạn chót quá hạn và ${todayCount} hạn chót trong hôm nay cần được giải quyết ngay để tránh ảnh hưởng đến tiến độ công việc.`;
       } else {
-        explanation = "Hạn chót của bạn hiện tại đang ở trạng thái an toàn. Không có mục nào quá hạn hoặc khẩn cấp trong ngày hôm nay.";
+        explanation = "Hạn chót của bạn hiện tại đang ở trạng thái an toàn. Không có mục nào quá hạn hoặc khân cấp trong ngày hôm nay.";
       }
     }
 
     return readOnlyAnswer(
-      parsed.intent,
+      "explain_deadline",
       explanation,
       radar
     );
   }
 
   if (parsed.intent === "daily_review") {
+    console.log(`[DEBUG] executeAiCommandInner -> daily_review: Calling getReviewSummary() and createDailyReviewProposal()`);
     const review = getReviewSummary();
     const proposal = createDailyReviewProposal();
 
@@ -555,6 +895,7 @@ async function executeAiCommand({ message, normalized }) {
   }
 
   if (parsed.intent === "explain_priority") {
+    console.log(`[DEBUG] executeAiCommandInner -> explain_priority: Calling rankOpenTasks()`);
     const focus = rankOpenTasks()[0];
     if (focus) {
       return readOnlyAnswer(
@@ -571,7 +912,7 @@ async function executeAiCommand({ message, normalized }) {
     }
   }
 
-  return readOnlyAnswer("fallback", "I do not have enough context to recommend a next action yet.", {});
+  return readOnlyAnswer("fallback", `System Error: Chưa có function xử lý hoặc cấu hình sai logic cho intent [${parsed.intent}].`, {});
 }
 
 function readOnlyAnswer(intent, answer, relatedContext) {
@@ -627,3 +968,5 @@ function minutesToTime(value) {
   const minutes = value % 60;
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
+
+

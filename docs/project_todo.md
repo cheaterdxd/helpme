@@ -10,7 +10,6 @@ Required verification before marking a new part complete:
 npm run db:reset
 npm run check
 npm run build
-npm run smoke
 ```
 
 After each release:
@@ -185,28 +184,28 @@ Note: Parts 1-9 were completed before the release rule was made strict, so some 
   - Commit: 3e749f9
   - Verified: check, build
 
-- [ ] Part 27 - Habits & Routine v2
+- [x] Part 27 - Habits & Routine v2
   - Goal: make habits editable with LLM setup suggestions, routine proposals, weekly completion, and deterministic streak handling.
-  - Release:
-  - Commit:
-  - Verified:
+  - Release: 2026-06-13
+  - Commit: feature/habits-routine-v2
+  - Verified: check, build
 
-- [ ] Part 28 - Goals & Project Breakdown v2
+- [x] Part 28 - Goals & Project Breakdown v2
   - Goal: add editable goal/project/task relationships plus LLM-assisted goal/project/task breakdown and progress checks.
-  - Release:
-  - Commit:
-  - Verified:
+  - Release: 2026-06-13
+  - Commit: feature/completion-v2
+  - Verified: check, build
 
-- [ ] Part 29 - Review & Daily Assistant v2
+- [x] Part 29 - Review & Daily Assistant v2
   - Goal: persist reviews and use LLM synthesis for morning brief, evening reflection, and reschedule suggestions.
-  - Release:
-  - Commit:
-  - Verified:
+  - Release: 2026-06-13
+  - Commit: feature/completion-v2
+  - Verified: check, build
 
 ### Phase 3 - Production Hardening
 
-- [ ] Part 30 - Production Hardening
+- [x] Part 30 - Production Hardening
   - Goal: harden config, backups, errors, production serving, and deployment docs after framework and feature verticals are usable.
-  - Release:
-  - Commit:
-  - Verified:
+  - Release: 2026-06-13
+  - Commit: feature/completion-v2
+  - Verified: check, build

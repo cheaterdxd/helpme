@@ -3,6 +3,7 @@ import { sqlite } from "../db/client.mjs";
 
 const defaultBaseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
 const defaultModel = process.env.OLLAMA_MODEL || "qwen3:1.7b";
+// const intentParser = "qwen3:1.7b";
 
 function getSetting(key, defaultValue) {
   try {
@@ -81,7 +82,12 @@ export async function getOllamaStatus() {
 
 export async function runOllamaJson({ prompt, schema, validator, model, timeoutMs }) {
   const resolvedModel = model ?? getSetting("preferred_model", defaultModel);
-  const resolvedTimeout = timeoutMs ?? getSetting("model_timeout_ms", 3000);
+  const resolvedTimeout = timeoutMs ?? getSetting("model_timeout_ms", 300000);
+  const maxContextChars = Number(getSetting("max_context_chars", process.env.HELPME_AI_MAX_CONTEXT_CHARS || 32000));
+  if (prompt && prompt.length > maxContextChars) {
+    throw new Error(`Prompt length (${prompt.length}) exceeds context limit of ${maxContextChars} characters.`);
+  }
+
   const runId = `ai_run_${randomUUID()}`;
   const startedAt = Date.now();
   const createdAt = new Date().toISOString();
@@ -141,7 +147,10 @@ export async function runOllamaJson({ prompt, schema, validator, model, timeoutM
         model: resolvedModel,
         prompt,
         stream: false,
-        format: schema
+        format: schema,
+        options: {
+          num_ctx: Math.max(8192, Math.ceil(maxContextChars / 2))
+        }
       })
     });
 
@@ -227,6 +236,11 @@ function formatError(error) {
 function mockOllamaResponse(prompt) {
   const norm = prompt.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
+  // Extract user command to avoid matching examples in instructions
+  const matchUserCmd = prompt.match(/User command:\s*"(.*)"/s);
+  const userCmd = matchUserCmd ? matchUserCmd[1] : prompt;
+  const normCmd = userCmd.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
   // 1. Daily planner candidates mock
   if (norm.includes("select the best tasks to schedule for today")) {
     return {
@@ -238,8 +252,9 @@ function mockOllamaResponse(prompt) {
   }
 
   // Task breakdown mock
-  if (norm.includes("break down the task")) {
+  if (norm.includes("task breakdown specialist")) {
     return {
+      explanation: "Tôi đề xuất chia nhỏ công việc của bạn.",
       subtasks: [
         { title: "Review AWS study guide", estimated_minutes: 30, priority: 70 },
         { title: "Read UC-45 revision notes", estimated_minutes: 45, priority: 80 },
@@ -257,27 +272,64 @@ function mockOllamaResponse(prompt) {
   }
 
   // 2. Intent parsing mock
-  if (norm.includes('user command: "organize inbox"')) {
-    return { intent: "organize_inbox", confidence: 0.95 };
+  if (normCmd.includes('list goals') || normCmd.includes('liet ke muc tieu')) {
+    return { action: "list", object: "goal", confidence: 0.95 };
   }
-  if (norm.includes('user command: "chia nho task hoc aws"')) {
+  if (normCmd.includes('list projects') || normCmd.includes('liet ke du an')) {
+    const match = normCmd.match(/(?:trong|of|for|in) goal (.*)$/) || normCmd.match(/(?:trong|of|for|in) muc tieu (.*)$/);
     return {
-      intent: "breakdown_task",
+      action: "list",
+      object: "project",
+      confidence: 0.95,
+      title: match ? match[1].trim() : undefined
+    };
+  }
+  if (normCmd.includes('list tasks') || normCmd.includes('liet ke cong viec')) {
+    return { action: "list", object: "tasks", confidence: 0.95 };
+  }
+  if (normCmd.includes('list habits') || normCmd.includes('liet ke thoi quen')) {
+    return { action: "list", object: "habits", confidence: 0.95 };
+  }
+  if (normCmd.includes("organize inbox")) {
+    return { action: "organize", object: "inbox", confidence: 0.95 };
+  }
+  if (normCmd.includes("tao muc tieu hoc aws")) {
+    return {
+      action: "create",
+      object: "goal",
+      confidence: 0.97,
+      title: "học AWS"
+    };
+  }
+  if (normCmd.includes("tao project thiet lap lab aws")) {
+    return {
+      action: "create",
+      object: "project",
+      confidence: 0.96,
+      title: "thiết lập lab AWS"
+    };
+  }
+  if (normCmd.includes("chia nho task hoc aws")) {
+    return {
+      action: "breakdown",
+      object: "task",
       confidence: 0.96,
       title: "học AWS"
     };
   }
-  if (norm.includes('user command: "hom nay toi ranh tu 20h den 23h, sap lich giup toi"')) {
+  if (normCmd.includes("hom nay toi ranh tu 20h den 23h, sap lich giup toi")) {
     return {
-      intent: "plan_day",
+      action: "schedule",
+      object: "day_plan",
       confidence: 0.98,
       availableStart: "20:00",
       availableEnd: "23:00"
     };
   }
-  if (norm.includes('user command: "nhac toi 20h hoc aws 1h"')) {
+  if (normCmd.includes("nhac toi 20h hoc aws 1h")) {
     return {
-      intent: "create_task",
+      action: "create",
+      object: "task",
       confidence: 0.95,
       title: "hoc AWS",
       scheduledStart: "2026-06-08T20:00:00+07:00",
@@ -285,9 +337,10 @@ function mockOllamaResponse(prompt) {
       priority: 55
     };
   }
-  if (norm.includes('user command: "nhac toi ngay mai 8:30 hoc aws 60 phut"')) {
+  if (normCmd.includes("nhac toi ngay mai 8:30 hoc aws 60 phut")) {
     return {
-      intent: "create_task",
+      action: "create",
+      object: "task",
       confidence: 0.97,
       title: "hoc AWS",
       scheduledStart: "2026-06-09T08:30:00+07:00",
@@ -295,41 +348,45 @@ function mockOllamaResponse(prompt) {
       priority: 55
     };
   }
-  if (norm.includes('user command: "move sang ngay mai 8:30h"')) {
+  if (normCmd.includes("move sang ngay mai 8:30h")) {
     return {
-      intent: "reschedule_task",
+      action: "schedule",
+      object: "task",
       confidence: 0.96,
       scheduledStart: "2026-06-09T08:30:00+07:00"
     };
   }
-  if (norm.includes('user command: "move sang ngay mai 10h"')) {
+  if (normCmd.includes("move sang ngay mai 10h")) {
     return {
-      intent: "reschedule_task",
+      action: "schedule",
+      object: "task",
       confidence: 0.96,
       scheduledStart: "2026-06-09T10:00:00+07:00"
     };
   }
-  if (norm.includes('user command: "evening review"')) {
-    return { intent: "daily_review", confidence: 0.95 };
+  if (normCmd.includes("evening review")) {
+    return { action: "statistics", object: "daily_review", confidence: 0.95 };
   }
-  if (norm.includes('user command: "deadline"') || norm.includes('user command: "han chot"')) {
-    return { intent: "deadline_radar", confidence: 0.95 };
+  if (normCmd.includes("deadline") || normCmd.includes("han chot")) {
+    return { action: "list", object: "deadline", confidence: 0.95 };
   }
-  if (norm.includes('user command: "nhac toi uong nuoc sau 15 phut"')) {
+  if (normCmd.includes("nhac toi uong nuoc sau 15 phut")) {
     return {
-      intent: "create_reminder",
+      action: "create",
+      object: "reminder",
       confidence: 0.95,
       title: "uống nước",
       scheduledStart: "2026-06-08T20:15:00+07:00"
     };
   }
-  if (norm.includes('user command: "abcxyz"')) {
-    return { intent: "fallback", confidence: 0.2 };
+  if (normCmd.includes("abcxyz")) {
+    return { action: "fallback", object: "fallback", confidence: 0.2 };
   }
 
   // Generic fallback if not matched
   return {
-    intent: "fallback",
+    action: "fallback",
+    object: "fallback",
     confidence: 0.1
   };
 }

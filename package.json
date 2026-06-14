@@ -7,6 +7,7 @@
   "scripts": {
     "build": "vite build",
     "check": "tsc --noEmit",
+    "cli": "node helpme-cli/cli.mjs",
     "db:migrate": "node server/db/migrate.mjs",
     "db:seed": "node server/db/seed.mjs",
     "db:reset": "node server/db/seed.mjs --reset",

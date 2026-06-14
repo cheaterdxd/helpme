@@ -42,8 +42,24 @@ import {
   fetchDeadlineRadarApi,
   createDeadlineApi,
   updateDeadlineApi,
-  deleteDeadlineApi
+  deleteDeadlineApi,
+  createHabitApi,
+  updateHabitApi,
+  deleteHabitApi,
+  fetchHabitInsightApi,
+  createGoalApi,
+  updateGoalApi,
+  deleteGoalApi,
+  createProjectApi,
+  updateProjectApi,
+  deleteProjectApi,
+  saveReviewApi,
+  fetchReviewHistoryApi,
+  fetchMorningBriefApi
 } from "../api";
+import { HabitEditorModal } from "./HabitEditorModal";
+import { GoalEditorModal } from "./GoalEditorModal";
+import { ProjectEditorModal } from "./ProjectEditorModal";
 
 type SecondaryRoute = Exclude<Route, "now">;
 
@@ -59,6 +75,7 @@ type RoutePanelProps = {
   onEditTask: (task: ApiTask | null) => void;
   onCompleteReminder: (reminderId: string) => Promise<void>;
   onSnoozeReminder: (reminderId: string, minutes?: number) => Promise<void>;
+  onReloadData: () => Promise<void>;
 };
 
 export function RoutePanel({
@@ -72,7 +89,8 @@ export function RoutePanel({
   onUpdateSettings,
   onEditTask,
   onCompleteReminder,
-  onSnoozeReminder
+  onSnoozeReminder,
+  onReloadData
 }: RoutePanelProps) {
   if (error) {
     return (
@@ -109,9 +127,9 @@ export function RoutePanel({
   if (route === "inbox") return <InboxView data={data} onCommand={onCommand} onEditTask={onEditTask} />;
   if (route === "calendar") return <CalendarView data={data} onCommand={onCommand} onEditTask={onEditTask} />;
   if (route === "deadlines") return <DeadlinesView radar={data.deadlines} onCommand={onCommand} data={data} />;
-  if (route === "goals") return <GoalsView data={data} />;
-  if (route === "habits") return <HabitsView data={data} onLogHabit={onLogHabit} />;
-  if (route === "review") return <ReviewView data={data} onCommand={onCommand} onCompleteTask={onCompleteTask} onReopenTask={onReopenTask} onEditTask={onEditTask} />;
+  if (route === "goals") return <GoalsView data={data} onReloadData={onReloadData} onCommand={onCommand} />;
+  if (route === "habits") return <HabitsView data={data} onLogHabit={onLogHabit} onReloadData={onReloadData} />;
+  if (route === "review") return <ReviewView data={data} onCommand={onCommand} onCompleteTask={onCompleteTask} onReopenTask={onReopenTask} onEditTask={onEditTask} onReloadData={onReloadData} />;
   return <SettingsView data={data} onUpdateSettings={onUpdateSettings} />;
 }
 
@@ -130,6 +148,28 @@ function TodayView({
   onCompleteReminder: (reminderId: string) => Promise<void>;
   onSnoozeReminder: (reminderId: string, minutes?: number) => Promise<void>;
 }) {
+  const [brief, setBrief] = useState<string>("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    fetchMorningBriefApi()
+      .then((res) => {
+        if (active) setBrief(res);
+      })
+      .catch((err) => {
+        console.error(err);
+        if (active) setBrief("Không thể kết nối với AI để tải Morning Brief.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <section className="os-view" aria-label="Today">
       <ViewHeader
@@ -140,6 +180,31 @@ function TodayView({
         actionLabel="Plan 20-23"
         onAction={() => onCommand("Hom nay toi ranh tu 20h den 23h, sap lich giup toi")}
       />
+
+      {/* AI Morning Brief Box */}
+      <div
+        style={{
+          background: "var(--panel)",
+          border: "1px solid var(--line)",
+          borderRadius: "var(--radius)",
+          padding: "16px 20px",
+          marginBottom: "20px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "8px",
+          boxShadow: "0 2px 8px rgba(33, 47, 39, 0.02)"
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <Sparkles size={16} style={{ color: "var(--accent)" }} />
+          <h3 style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "var(--accent)" }}>AI Morning Briefing</h3>
+        </div>
+        {loading ? (
+          <p style={{ margin: 0, fontSize: "13px", color: "var(--muted)", fontStyle: "italic" }}>AI đang tổng hợp thông tin chào buổi sáng...</p>
+        ) : (
+          <p style={{ margin: 0, fontSize: "13px", lineHeight: 1.6, color: "var(--ink)" }}>{brief || "Không có lời khuyên nào cho hôm nay."}</p>
+        )}
+      </div>
 
       {data.today.reminders && data.today.reminders.length > 0 && (
         <section className="reminder-container" style={{ display: "flex", flexDirection: "column", gap: "8px", margin: "16px 0" }}>
@@ -1783,64 +1848,645 @@ function DeadlineEditorModal({
   );
 }
 
-function GoalsView({ data }: { data: AppData }) {
+function GoalsView({
+  data,
+  onReloadData,
+  onCommand
+}: {
+  data: AppData;
+  onReloadData: () => Promise<void>;
+  onCommand: (message: string) => Promise<void>;
+}) {
+  const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<any | null>(null);
+  const [editingProject, setEditingProject] = useState<any | null>(null);
+
+  const openGoalEditor = (goal: any | null) => {
+    setEditingGoal(goal);
+    setIsGoalModalOpen(true);
+  };
+
+  const openProjectEditor = (project: any | null) => {
+    setEditingProject(project);
+    setIsProjectModalOpen(true);
+  };
+
+  const handleSaveGoal = async (payload: any) => {
+    if (editingGoal) {
+      await updateGoalApi(editingGoal.id, payload);
+    } else {
+      await createGoalApi(payload);
+    }
+    await onReloadData();
+  };
+
+  const handleDeleteGoal = async (id: string) => {
+    await deleteGoalApi(id);
+    await onReloadData();
+  };
+
+  const handleSaveProject = async (payload: any) => {
+    if (editingProject) {
+      await updateProjectApi(editingProject.id, payload);
+    } else {
+      await createProjectApi(payload);
+    }
+    await onReloadData();
+  };
+
+  const handleDeleteProject = async (id: string) => {
+    await deleteProjectApi(id);
+    await onReloadData();
+  };
+
+  const handleAiBreakdown = async (type: "goal" | "project", title: string) => {
+    await onCommand(`breakdown ${type} "${title}"`);
+  };
+
   return (
     <section className="os-view" aria-label="Goals">
-      <ViewHeader
-        icon={<Target aria-hidden="true" size={20} />}
-        kicker="Goals"
-        title="Goal to project to task"
-        body="HelpMe connects daily work back to larger outcomes."
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
+        <ViewHeader
+          icon={<Target aria-hidden="true" size={20} />}
+          kicker="Goals & Projects"
+          title="Goal to project to task"
+          body="HelpMe connects daily work back to larger outcomes. Use AI to break them down."
+        />
+        <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+          <button
+            type="button"
+            onClick={() => openGoalEditor(null)}
+            className="row-action"
+            style={{
+              background: "var(--accent)",
+              color: "#fff",
+              border: "none",
+              padding: "8px 16px",
+              borderRadius: "var(--radius)",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              cursor: "pointer",
+              fontWeight: 500
+            }}
+          >
+            <Plus size={16} />
+            <span>Thêm mục tiêu</span>
+          </button>
+          {data.goals.length > 0 && (
+            <button
+              type="button"
+              onClick={() => openProjectEditor(null)}
+              className="row-action"
+              style={{
+                background: "var(--panel)",
+                border: "1px solid var(--line)",
+                padding: "8px 16px",
+                borderRadius: "var(--radius)",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                cursor: "pointer",
+                fontWeight: 500
+              }}
+            >
+              <Plus size={16} />
+              <span>Thêm dự án</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="goal-stack" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+        {data.goals.length === 0 ? (
+          <EmptyState title="Chưa có mục tiêu nào" message="Hãy thêm mục tiêu đầu tiên của bạn để liên kết công việc." />
+        ) : (
+          data.goals.map((goal) => (
+            <section
+              className="goal-row"
+              key={goal.id}
+              style={{
+                background: "var(--panel)",
+                border: "1px solid var(--line)",
+                borderRadius: "var(--radius)",
+                padding: "20px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "16px",
+                position: "relative"
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div style={{ flex: 1, paddingRight: "120px" }}>
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                      fontWeight: 700,
+                      color: goal.is_north_star ? "var(--accent)" : "var(--muted)",
+                      background: goal.is_north_star ? "rgba(33, 150, 83, 0.08)" : "rgba(107, 114, 128, 0.05)",
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      display: "inline-block",
+                      marginBottom: "6px"
+                    }}
+                  >
+                    {goal.is_north_star ? "Sao Bắc Đẩu (North Star)" : "Mục tiêu"}
+                  </span>
+                  <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "var(--ink)" }}>{goal.title}</h2>
+                  {goal.description && (
+                    <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "var(--muted)" }}>{goal.description}</p>
+                  )}
+                </div>
+
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button
+                    type="button"
+                    onClick={() => handleAiBreakdown("goal", goal.title)}
+                    className="inline-action"
+                    style={{
+                      background: "rgba(33, 150, 83, 0.08)",
+                      color: "var(--accent)",
+                      border: "none",
+                      padding: "6px 12px",
+                      borderRadius: "var(--radius)",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      fontSize: "12px",
+                      fontWeight: 600
+                    }}
+                    title="Yêu cầu AI phân rã mục tiêu này thành các công việc"
+                  >
+                    <Sparkles size={14} />
+                    <span>AI Breakdown</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openGoalEditor(goal)}
+                    className="inline-action"
+                    style={{
+                      background: "none",
+                      border: "1px solid var(--line)",
+                      padding: "6px 12px",
+                      borderRadius: "var(--radius)",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      fontSize: "12px",
+                      color: "var(--muted)"
+                    }}
+                  >
+                    <Edit3 size={14} />
+                    <span>Sửa</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Progress track */}
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div style={{ flex: 1, height: "6px", background: "var(--line)", borderRadius: "3px", overflow: "hidden" }}>
+                  <div style={{ width: `${goal.progress}%`, height: "100%", background: "var(--accent)", borderRadius: "3px" }} />
+                </div>
+                <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--accent)", minWidth: "32px", textAlign: "right" }}>
+                  {goal.progress}%
+                </span>
+              </div>
+
+              {/* Projects inside Goal */}
+              <div style={{ borderTop: "1px solid var(--line)", paddingTop: "14px" }}>
+                <h3 style={{ margin: "0 0 10px 0", fontSize: "13px", fontWeight: 600, color: "var(--muted)" }}>Dự án liên kết</h3>
+                {goal.projects.length === 0 ? (
+                  <p style={{ margin: 0, fontSize: "13px", color: "var(--muted)", fontStyle: "italic" }}>
+                    Chưa có dự án nào thuộc mục tiêu này.
+                  </p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {goal.projects.map((project: any) => (
+                      <div
+                        key={project.id}
+                        style={{
+                          background: "var(--bg)",
+                          border: "1px solid var(--line)",
+                          borderRadius: "var(--radius)",
+                          padding: "10px 14px",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: "12px"
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <Folder size={16} style={{ color: "var(--accent)", opacity: 0.8 }} />
+                          <div>
+                            <strong style={{ fontSize: "14px", color: "var(--ink)" }}>{project.title}</strong>
+                            {project.description && (
+                              <span style={{ fontSize: "12px", color: "var(--muted)", marginLeft: "8px" }}>
+                                - {project.description}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ fontSize: "11px", color: "var(--muted)" }}>
+                            {project.tasks?.length || 0} công việc
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleAiBreakdown("project", project.title)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              color: "var(--accent)",
+                              padding: "4px"
+                            }}
+                            title="AI Breakdown dự án này"
+                          >
+                            <Sparkles size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openProjectEditor(project)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              color: "var(--muted)",
+                              padding: "4px"
+                            }}
+                            title="Sửa dự án"
+                          >
+                            <Edit3 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+          ))
+        )}
+      </div>
+
+      <GoalEditorModal
+        goal={editingGoal}
+        isOpen={isGoalModalOpen}
+        onClose={() => setIsGoalModalOpen(false)}
+        onSave={handleSaveGoal}
+        onDelete={editingGoal ? handleDeleteGoal : undefined}
       />
 
-      <div className="goal-stack">
-        {data.goals.map((goal) => (
-          <section className="goal-row" key={goal.id}>
-            <div>
-              <p className="block-label">{goal.is_north_star ? "North Star" : "Goal"}</p>
-              <h2>{goal.title}</h2>
-              <div className="progress-track" aria-label={`${goal.progress}% progress`}>
-                <span style={{ width: `${goal.progress}%` }} />
-              </div>
-            </div>
-            <div className="project-chips">
-              {goal.projects.map((project) => (
-                <span key={project.id}>{project.title} · {project.tasks.length}</span>
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
+      <ProjectEditorModal
+        project={editingProject}
+        goals={data.goals.map((g: any) => ({ id: g.id, title: g.title }))}
+        isOpen={isProjectModalOpen}
+        onClose={() => setIsProjectModalOpen(false)}
+        onSave={handleSaveProject}
+        onDelete={editingProject ? handleDeleteProject : undefined}
+      />
     </section>
   );
 }
 
-function HabitsView({ data, onLogHabit }: { data: AppData; onLogHabit: (habitId: string) => Promise<void> }) {
+function HabitsView({
+  data,
+  onLogHabit,
+  onReloadData
+}: {
+  data: AppData;
+  onLogHabit: (habitId: string) => Promise<void>;
+  onReloadData: () => Promise<void>;
+}) {
+  const [activeTab, setActiveTab] = useState<"list" | "review">("list");
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [editingHabit, setEditingHabit] = useState<any | null>(null);
+
+  const [insight, setInsight] = useState<string>("");
+  const [loadingInsight, setLoadingInsight] = useState(false);
+
+  const loadInsight = async () => {
+    setLoadingInsight(true);
+    try {
+      const text = await fetchHabitInsightApi();
+      setInsight(text);
+    } catch (err) {
+      console.error(err);
+      setInsight("Không thể kết nối với AI để tải phân tích thói quen.");
+    } finally {
+      setLoadingInsight(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "review" && !insight) {
+      void loadInsight();
+    }
+  }, [activeTab]);
+
+  const openEditor = (habit: any | null) => {
+    setEditingHabit(habit);
+    setIsEditorOpen(true);
+  };
+
+  const handleSaveHabit = async (habitData: any) => {
+    try {
+      if (editingHabit) {
+        await updateHabitApi(editingHabit.id, habitData);
+      } else {
+        await createHabitApi(habitData);
+      }
+      await onReloadData();
+    } catch (err: any) {
+      alert(err.message || "Lỗi khi lưu thói quen");
+      throw err;
+    }
+  };
+
+  const handleDeleteHabit = async (habitId: string) => {
+    try {
+      await deleteHabitApi(habitId);
+      await onReloadData();
+    } catch (err: any) {
+      alert(err.message || "Lỗi khi xóa thói quen");
+      throw err;
+    }
+  };
+
+  const activeHabits = data.habits.filter((h) => h.status === "active");
+  const pausedHabits = data.habits.filter((h) => h.status === "paused");
+  const daysLabel = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
+
   return (
     <section className="os-view" aria-label="Habits">
-      <ViewHeader
-        icon={<Activity aria-hidden="true" size={20} />}
-        kicker="Habits"
-        title="Routine health"
-        body="Habits stay lightweight: check the signal, then schedule a smaller block if needed."
-      />
-
-      <div className="habit-grid">
-        {data.habits.map((habit) => (
-          <section className="habit-item" key={habit.id}>
-            <div>
-              <strong>{habit.title}</strong>
-              <span>{habit.frequency} · streak {habit.streak}</span>
-            </div>
-            <b>{habit.completion_rate}%</b>
-            <p>{habit.insight}</p>
-            <button className="inline-action" type="button" onClick={() => void onLogHabit(habit.id)}>
-              <CheckCircle2 aria-hidden="true" size={15} />
-              <span>Check today</span>
-            </button>
-          </section>
-        ))}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+        <ViewHeader
+          icon={<Activity aria-hidden="true" size={20} />}
+          kicker="Habits"
+          title="Routine health"
+          body="Habits stay lightweight: check the signal, then schedule a smaller block if needed."
+        />
+        <button
+          type="button"
+          onClick={() => openEditor(null)}
+          className="row-action"
+          style={{
+            background: "var(--accent)",
+            color: "#fff",
+            border: "none",
+            padding: "8px 16px",
+            borderRadius: "var(--radius)",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            cursor: "pointer",
+            fontWeight: 500,
+            marginTop: "16px"
+          }}
+        >
+          <Plus size={16} />
+          <span>Thêm thói quen</span>
+        </button>
       </div>
+
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: "24px", marginBottom: "20px", borderBottom: "1px solid var(--line)", paddingBottom: "4px" }}>
+        <button
+          type="button"
+          onClick={() => setActiveTab("list")}
+          style={{
+            background: "none",
+            border: "none",
+            fontWeight: activeTab === "list" ? 600 : 400,
+            color: activeTab === "list" ? "var(--accent)" : "var(--muted)",
+            borderBottom: activeTab === "list" ? "2px solid var(--accent)" : "none",
+            padding: "8px 4px",
+            cursor: "pointer",
+            fontSize: "14px"
+          }}
+        >
+          Thói quen hiện tại
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("review")}
+          style={{
+            background: "none",
+            border: "none",
+            fontWeight: activeTab === "review" ? 600 : 400,
+            color: activeTab === "review" ? "var(--accent)" : "var(--muted)",
+            borderBottom: activeTab === "review" ? "2px solid var(--accent)" : "none",
+            padding: "8px 4px",
+            cursor: "pointer",
+            fontSize: "14px"
+          }}
+        >
+          Đánh giá tuần & AI Insight
+        </button>
+      </div>
+
+      {activeTab === "list" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+          <div>
+            <h2 style={{ fontSize: "15px", fontWeight: 600, marginBottom: "12px", color: "var(--muted)" }}>Đang hoạt động</h2>
+            {activeHabits.length === 0 ? (
+              <EmptyState title="Không có thói quen hoạt động" message="Nhấp vào nút Thêm thói quen phía trên để bắt đầu." />
+            ) : (
+              <div className="habit-grid">
+                {activeHabits.map((habit) => (
+                  <section className="habit-item" key={habit.id} style={{ position: "relative" }}>
+                    <div style={{ paddingRight: "28px" }}>
+                      <strong>{habit.title}</strong>
+                      <span>{habit.frequency === "daily" ? "Mỗi ngày" : "Mỗi tuần"} · chuỗi {habit.streak} ngày</span>
+                    </div>
+                    <b>{habit.completion_rate}%</b>
+                    <p>{habit.insight || "Hãy duy trì thói quen này mỗi ngày."}</p>
+                    <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+                      <button className="inline-action" type="button" onClick={() => void onLogHabit(habit.id)} style={{ flex: 1 }}>
+                        <CheckCircle2 aria-hidden="true" size={15} />
+                        <span>Check today</span>
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openEditor(habit)}
+                      style={{
+                        position: "absolute",
+                        top: "16px",
+                        right: "16px",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        color: "var(--muted)",
+                        padding: "4px"
+                      }}
+                      title="Sửa thói quen"
+                    >
+                      <Edit3 size={16} />
+                    </button>
+                  </section>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {pausedHabits.length > 0 && (
+            <div>
+              <h2 style={{ fontSize: "15px", fontWeight: 600, marginBottom: "12px", color: "var(--muted)" }}>Tạm dừng</h2>
+              <div className="habit-grid" style={{ opacity: 0.6 }}>
+                {pausedHabits.map((habit) => (
+                  <section className="habit-item" key={habit.id} style={{ position: "relative" }}>
+                    <div style={{ paddingRight: "28px" }}>
+                      <strong>{habit.title}</strong>
+                      <span>{habit.frequency === "daily" ? "Mỗi ngày" : "Mỗi tuần"} · Tạm dừng</span>
+                    </div>
+                    <b>{habit.completion_rate}%</b>
+                    <p>Thói quen đang được tạm dừng.</p>
+                    <button
+                      type="button"
+                      onClick={() => openEditor(habit)}
+                      style={{
+                        position: "absolute",
+                        top: "16px",
+                        right: "16px",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        color: "var(--muted)",
+                        padding: "4px"
+                      }}
+                      title="Sửa thói quen"
+                    >
+                      <Edit3 size={16} />
+                    </button>
+                  </section>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+          {/* AI Insight Box */}
+          <div
+            style={{
+              background: "var(--panel)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+              padding: "20px",
+              position: "relative"
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+              <Sparkles size={18} style={{ color: "var(--accent)" }} />
+              <h3 style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "var(--accent)" }}>AI Habit Insight</h3>
+            </div>
+            {loadingInsight ? (
+              <p style={{ margin: 0, fontSize: "13px", color: "var(--muted)", fontStyle: "italic" }}>AI đang phân tích thói quen của bạn...</p>
+            ) : (
+              <p style={{ margin: 0, fontSize: "13px", lineHeight: 1.6 }}>{insight || "Chưa có phân tích thói quen nào."}</p>
+            )}
+            <button
+              type="button"
+              onClick={loadInsight}
+              disabled={loadingInsight}
+              style={{
+                position: "absolute",
+                top: "16px",
+                right: "16px",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "var(--muted)",
+                padding: "4px",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                fontSize: "12px"
+              }}
+              title="Cập nhật insight"
+            >
+              <RotateCcw size={14} className={loadingInsight ? "spin" : ""} />
+              <span>{loadingInsight ? "Đang chạy..." : "Cập nhật"}</span>
+            </button>
+          </div>
+
+          {/* Weekly Completion Grid */}
+          <div>
+            <h2 style={{ fontSize: "15px", fontWeight: 600, marginBottom: "16px", color: "var(--muted)" }}>Lịch sử hoàn thành tuần này (Thứ 2 - Chủ Nhật)</h2>
+            {data.habits.length === 0 ? (
+              <EmptyState title="Không có thói quen nào" message="Hãy thêm thói quen mới để theo dõi." />
+            ) : (
+              <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: "var(--radius)", overflow: "hidden" }}>
+                {data.habits.map((habit) => (
+                  <div
+                    key={habit.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "16px 20px",
+                      borderBottom: "1px solid var(--line)"
+                    }}
+                  >
+                    <div style={{ flex: 1, paddingRight: "16px" }}>
+                      <strong style={{ display: "block", fontSize: "14px", color: habit.status === "paused" ? "var(--muted)" : "inherit" }}>
+                        {habit.title} {habit.status === "paused" && <span style={{ fontSize: "12px", fontStyle: "italic", fontWeight: 400 }}>(Tạm dừng)</span>}
+                      </strong>
+                      <span style={{ fontSize: "12px", color: "var(--muted)" }}>Chuỗi liên tiếp: {habit.streak} ngày</span>
+                    </div>
+                    <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                      {daysLabel.map((day, idx) => {
+                        const completed = habit.weekly_history?.[idx] ?? false;
+                        return (
+                          <div key={idx} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
+                            <span style={{ fontSize: "10px", color: "var(--muted)", fontWeight: 600 }}>{day}</span>
+                            <div
+                              style={{
+                                width: "26px",
+                                height: "26px",
+                                borderRadius: "50%",
+                                border: "1.5px solid var(--line)",
+                                backgroundColor: completed ? "rgba(33, 150, 83, 0.12)" : "transparent",
+                                borderColor: completed ? "var(--accent)" : "var(--line)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                color: completed ? "var(--accent)" : "transparent"
+                              }}
+                            >
+                              {completed && <CheckCircle2 size={15} style={{ color: "var(--accent)" }} />}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div style={{ width: "60px", textAlign: "right", marginLeft: "12px", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                        <span style={{ fontSize: "10px", color: "var(--muted)", fontWeight: 600 }}>Tỷ lệ</span>
+                        <strong style={{ fontSize: "14px", color: "var(--accent)" }}>{habit.completion_rate}%</strong>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Editor Modal */}
+      <HabitEditorModal
+        habit={editingHabit}
+        isOpen={isEditorOpen}
+        onClose={() => setIsEditorOpen(false)}
+        onSave={handleSaveHabit}
+        onDelete={handleDeleteHabit}
+      />
     </section>
   );
 }
@@ -1850,52 +2496,340 @@ function ReviewView({
   onCommand,
   onCompleteTask,
   onReopenTask,
-  onEditTask
+  onEditTask,
+  onReloadData
 }: {
   data: AppData;
   onCommand: (message: string) => Promise<void>;
   onCompleteTask: (taskId: string) => Promise<void>;
   onReopenTask: (taskId: string) => Promise<void>;
   onEditTask: (task: ApiTask | null) => void;
+  onReloadData: () => Promise<void>;
 }) {
+  const [energyLevel, setEnergyLevel] = useState("medium");
+  const [summary, setSummary] = useState("");
+  const [history, setHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [savingReview, setSavingReview] = useState(false);
+  const [successMsg, setSuccessMsg] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const loadHistory = async () => {
+    setLoadingHistory(true);
+    try {
+      const data = await fetchReviewHistoryApi();
+      setHistory(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
+  const handleSaveReview = async (e: FormEvent) => {
+    e.preventDefault();
+    setSavingReview(true);
+    setSuccessMsg("");
+    setErrorMsg("");
+
+    const completedCount = data.review.completed.length;
+    const unfinishedCount = data.review.unfinished.length;
+
+    try {
+      await saveReviewApi({
+        energy_level: energyLevel,
+        summary: summary,
+        tasks_completed: completedCount,
+        tasks_total: completedCount + unfinishedCount
+      });
+      setSuccessMsg("Đã lưu đánh giá ngày hôm nay thành công!");
+      setSummary("");
+      await loadHistory();
+      await onReloadData();
+    } catch (err: any) {
+      setErrorMsg(err.message || "Không thể lưu đánh giá.");
+    } finally {
+      setSavingReview(false);
+    }
+  };
+
   return (
     <section className="os-view" aria-label="Review">
       <ViewHeader
         icon={<CheckCircle2 aria-hidden="true" size={20} />}
-        kicker="Review"
-        title={data.review.prompt}
-        body={data.review.summary}
-        actionLabel="Apply review"
+        kicker="Review & Evening Reflection"
+        title={data.review.prompt || "Evening reflection"}
+        body={data.review.summary || "Đánh giá ngày làm việc của bạn và chuẩn bị cho ngày mai."}
+        actionLabel="AI Review Suggestion"
         onAction={() => onCommand("Evening review")}
       />
 
-      <div className="split-grid">
-        <section>
-          <h2>Unfinished</h2>
-          <TaskList tasks={data.review.unfinished} empty="No unfinished task in today's plan." onCompleteTask={onCompleteTask} onEditTask={onEditTask} />
-        </section>
-        <section>
-          <h2>Suggested reschedule</h2>
-          <div className="compact-list">
-            {data.review.reschedule_suggestion.map((item) => (
-              <div key={item.task_id}>
-                <strong>{item.title}</strong>
-                <span>
-                  {formatDateLabel(item.suggested_start)} {formatTime(item.suggested_start)} - {formatTime(item.suggested_end)} / {item.duration_minutes}m
-                </span>
+      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: "24px", marginTop: "20px" }}>
+        {/* Cột trái: Công việc trong ngày */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+          <section
+            style={{
+              background: "var(--panel)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+              padding: "20px"
+            }}
+          >
+            <h2 style={{ margin: "0 0 16px 0", fontSize: "16px", fontWeight: 600, color: "var(--ink)" }}>Chưa hoàn thành</h2>
+            <TaskList
+              tasks={data.review.unfinished}
+              empty="Không có công việc chưa hoàn thành trong kế hoạch hôm nay."
+              onCompleteTask={onCompleteTask}
+              onEditTask={onEditTask}
+            />
+          </section>
+
+          <section
+            style={{
+              background: "var(--panel)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+              padding: "20px"
+            }}
+          >
+            <h2 style={{ margin: "0 0 16px 0", fontSize: "16px", fontWeight: 600, color: "var(--ink)" }}>Đề xuất sắp xếp lại (AI Reschedule)</h2>
+            <div className="compact-list" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              {data.review.reschedule_suggestion.map((item) => (
+                <div
+                  key={item.task_id}
+                  style={{
+                    background: "var(--bg)",
+                    border: "1px solid var(--line)",
+                    borderRadius: "var(--radius)",
+                    padding: "12px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px"
+                  }}
+                >
+                  <strong style={{ fontSize: "14px", color: "var(--ink)" }}>{item.title}</strong>
+                  <span style={{ fontSize: "12px", color: "var(--muted)" }}>
+                    Gợi ý: {formatDateLabel(item.suggested_start)} {formatTime(item.suggested_start)} - {formatTime(item.suggested_end)} ({item.duration_minutes} phút)
+                  </span>
+                  {item.reason && (
+                    <p style={{ margin: "4px 0 0 0", fontSize: "12px", color: "var(--accent)", fontStyle: "italic" }}>
+                      Lý do: {item.reason}
+                    </p>
+                  )}
+                </div>
+              ))}
+              {!data.review.reschedule_suggestion.length && (
+                <div style={{ color: "var(--muted)", fontSize: "13px", padding: "12px 4px", fontStyle: "italic" }}>
+                  Không có đề xuất sắp xếp lại lịch trình.
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section
+            style={{
+              background: "var(--panel)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+              padding: "20px"
+            }}
+          >
+            <h2 style={{ margin: "0 0 16px 0", fontSize: "16px", fontWeight: 600, color: "var(--ink)" }}>Đã hoàn thành hôm nay</h2>
+            <TaskList
+              tasks={data.review.completed}
+              empty="Chưa có công việc nào được hoàn thành hôm nay."
+              onReopenTask={onReopenTask}
+              onEditTask={onEditTask}
+            />
+          </section>
+        </div>
+
+        {/* Cột phải: Form lưu review & Lịch sử */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+          {/* Form đánh giá ngày */}
+          <section
+            style={{
+              background: "var(--panel)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+              padding: "20px"
+            }}
+          >
+            <h2 style={{ margin: "0 0 16px 0", fontSize: "16px", fontWeight: 600, color: "var(--ink)" }}>
+              Viết đánh giá ngày
+            </h2>
+            <form onSubmit={handleSaveReview} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              {successMsg && (
+                <div className="settings-alert-success" style={{ margin: 0, padding: "8px 12px", fontSize: "13px" }}>
+                  {successMsg}
+                </div>
+              )}
+              {errorMsg && (
+                <div className="settings-alert-error" style={{ margin: 0, padding: "8px 12px", fontSize: "13px" }}>
+                  {errorMsg}
+                </div>
+              )}
+
+              <div>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "8px", color: "var(--muted)" }}>
+                  Mức năng lượng hôm nay
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
+                  {[
+                    { val: "high", label: "High ⚡" },
+                    { val: "medium", label: "Medium 😊" },
+                    { val: "low", label: "Low 😴" }
+                  ].map((item) => (
+                    <button
+                      key={item.val}
+                      type="button"
+                      onClick={() => setEnergyLevel(item.val)}
+                      style={{
+                        padding: "8px",
+                        borderRadius: "var(--radius)",
+                        border: "1px solid",
+                        borderColor: energyLevel === item.val ? "var(--accent)" : "var(--line)",
+                        background: energyLevel === item.val ? "rgba(33, 150, 83, 0.08)" : "var(--bg)",
+                        color: energyLevel === item.val ? "var(--accent)" : "var(--ink)",
+                        fontWeight: energyLevel === item.val ? 600 : 400,
+                        cursor: "pointer",
+                        fontSize: "13px",
+                        transition: "all 0.2s"
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            ))}
-            {!data.review.reschedule_suggestion.length && (
-              <div style={{ color: "var(--muted)", fontSize: "13px", padding: "12px 4px" }}>
-                No reschedule needed.
+
+              <div>
+                <label htmlFor="rev-summary" style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "8px", color: "var(--muted)" }}>
+                  Bài học / Nhận xét ngày hôm nay
+                </label>
+                <textarea
+                  id="rev-summary"
+                  placeholder="Ghi nhận xét ngắn gọn, những gì bạn đã học được hoặc cảm nghĩ..."
+                  value={summary}
+                  onChange={(e) => setSummary(e.target.value)}
+                  required
+                  style={{
+                    width: "100%",
+                    minHeight: "100px",
+                    padding: "10px",
+                    borderRadius: "var(--radius)",
+                    border: "1px solid var(--line)",
+                    background: "var(--bg)",
+                    color: "var(--ink)",
+                    fontSize: "13px",
+                    resize: "vertical",
+                    outline: "none"
+                  }}
+                />
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", color: "var(--muted)" }}>
+                <span>Đã xong: {data.review.completed.length}/{data.review.completed.length + data.review.unfinished.length} tasks</span>
+                <button
+                  type="submit"
+                  disabled={savingReview}
+                  style={{
+                    background: "var(--accent)",
+                    color: "#fff",
+                    border: "none",
+                    padding: "8px 16px",
+                    borderRadius: "var(--radius)",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    fontSize: "13px"
+                  }}
+                >
+                  {savingReview ? "Đang lưu..." : "Lưu đánh giá"}
+                </button>
+              </div>
+            </form>
+          </section>
+
+          {/* Lịch sử reviews */}
+          <section
+            style={{
+              background: "var(--panel)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+              padding: "20px"
+            }}
+          >
+            <h2 style={{ margin: "0 0 16px 0", fontSize: "16px", fontWeight: 600, color: "var(--ink)" }}>Lịch sử đánh giá</h2>
+            {loadingHistory ? (
+              <p style={{ fontSize: "13px", color: "var(--muted)", fontStyle: "italic" }}>Đang tải lịch sử...</p>
+            ) : history.length === 0 ? (
+              <p style={{ fontSize: "13px", color: "var(--muted)", fontStyle: "italic" }}>Chưa có đánh giá nào được lưu.</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px", maxHeight: "360px", overflowY: "auto", paddingRight: "4px" }}>
+                {history.map((h) => {
+                  const energyColors: Record<string, string> = {
+                    high: "rgba(33, 150, 83, 0.12)",
+                    medium: "rgba(59, 130, 246, 0.12)",
+                    low: "rgba(245, 158, 11, 0.12)"
+                  };
+                  const energyTextColors: Record<string, string> = {
+                    high: "var(--accent)",
+                    medium: "#3b82f6",
+                    low: "#f59e0b"
+                  };
+                  return (
+                    <div
+                      key={h.id}
+                      style={{
+                        background: "var(--bg)",
+                        border: "1px solid var(--line)",
+                        borderRadius: "var(--radius)",
+                        padding: "12px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px"
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--ink)" }}>
+                          {h.review_date}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: "10px",
+                            padding: "2px 6px",
+                            borderRadius: "4px",
+                            fontWeight: 700,
+                            backgroundColor: energyColors[h.energy_value] || "var(--line)",
+                            color: energyTextColors[h.energy_value] || "var(--muted)",
+                            textTransform: "uppercase"
+                          }}
+                        >
+                          {h.energy_value}
+                        </span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: "13px", color: "var(--ink)", lineHeight: 1.4 }}>
+                        {h.summary}
+                      </p>
+                      {h.reflection && (
+                        <p style={{ margin: "4px 0 0 0", fontSize: "12px", color: "var(--muted)", fontStyle: "italic", background: "rgba(33, 47, 39, 0.02)", padding: "6px", borderRadius: "4px" }}>
+                          AI Reflection: {h.reflection}
+                        </p>
+                      )}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "11px", color: "var(--muted)", borderTop: "1px solid var(--line)", paddingTop: "6px", marginTop: "4px" }}>
+                        <span>Hoàn thành: {h.completed_count}/{h.unfinished_count} tasks</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
-          </div>
-        </section>
-        <section>
-          <h2>Completed</h2>
-          <TaskList tasks={data.review.completed} empty="No completed task in today's plan." onReopenTask={onReopenTask} onEditTask={onEditTask} />
-        </section>
+          </section>
+        </div>
       </div>
     </section>
   );
@@ -2076,6 +3010,33 @@ function SettingsView({
             />
             <label htmlFor="deepMode" style={{ cursor: "pointer" }}>Enable Deep Planning Mode by Default</label>
           </div>
+        </div>
+
+        <div className="settings-section-card">
+          <h3>Sao lưu & Phục hồi</h3>
+          <p className="settings-note" style={{ marginBottom: "14px", fontSize: "13px" }}>
+            Tải xuống bản sao lưu của cơ sở dữ liệu SQLite cục bộ bất cứ lúc nào để lưu trữ an toàn hoặc chuyển đổi thiết bị.
+          </p>
+          <a
+            href="/api/system/backup"
+            download="helpme.sqlite"
+            className="row-action"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              background: "var(--panel)",
+              border: "1px solid var(--line)",
+              padding: "10px 16px",
+              borderRadius: "var(--radius)",
+              cursor: "pointer",
+              fontWeight: 600,
+              textDecoration: "none",
+              color: "var(--ink)"
+            }}
+          >
+            <span>Tải xuống bản sao lưu (SQLite Backup)</span>
+          </a>
         </div>
 
         <button type="submit" className="settings-save-btn" disabled={saving}>

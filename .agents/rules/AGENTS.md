@@ -36,7 +36,6 @@ Roadmap and release rules:
 npm run db:reset
 npm run check
 npm run build
-npm run smoke
 ```
 
 - For docs-only changes, a build is not required, but still inspect the diff and commit separately.

@@ -62,7 +62,7 @@ export function AskOverlay({
       {answer && (
         <div className="ask-answer" aria-live="polite">
           <strong>HelpMe</strong>
-          <p>{answer.answer}</p>
+          <p>{formatMarkdownText(answer.answer)}</p>
 
           {answer.proposal && (
             <div className="proposal-card">
@@ -358,4 +358,15 @@ function ReminderProposalPreview({ proposal }: { proposal: AiActionProposal }) {
       </div>
     </div>
   );
+}
+
+function formatMarkdownText(text: string) {
+  if (!text) return "";
+  const parts = text.split(/\*\*([\s\S]*?)\*\*/g);
+  return parts.map((part, index) => {
+    if (index % 2 === 1) {
+      return <strong key={index}>{part}</strong>;
+    }
+    return part;
+  });
 }

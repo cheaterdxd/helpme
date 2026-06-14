@@ -1,0 +1,20 @@
+{
+  "name": "helpme-cli",
+  "version": "0.1.0",
+  "description": "HelpMe CLI — terminal chat interface for HelpMe Personal OS",
+  "type": "module",
+  "main": "cli.mjs",
+  "bin": {
+    "helpme": "./cli.mjs"
+  },
+  "scripts": {
+    "start": "node cli.mjs"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "cli-table3": "^0.6.5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

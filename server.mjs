@@ -1,13 +1,14 @@
 import fastifyStatic from "@fastify/static";
 import middie from "@fastify/middie";
 import Fastify from "fastify";
-import { existsSync } from "node:fs";
+import { existsSync, createReadStream } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer as createViteServer } from "vite";
 import { aiCommandRequestSchema, handleAiCommand } from "./server/ai/command.mjs";
 import { getOllamaStatus } from "./server/ai/ollama-client.mjs";
+import { dbPath } from "./server/db/client.mjs";
 import {
   completeFocusSession,
   completeTask,
@@ -21,7 +22,6 @@ import {
   getTaskCollections,
   getTodayView,
   logHabitToday,
-  organizeInboxIntoProposal,
   reopenTask,
   startFocusSession,
   getSettings,
@@ -43,7 +43,20 @@ import {
   deleteTimeBlock,
   createDeadline,
   updateDeadline,
-  deleteDeadline
+  deleteDeadline,
+  createHabit,
+  updateHabit,
+  deleteHabit,
+  getHabitsInsight,
+  createGoal,
+  updateGoal,
+  deleteGoal,
+  createProject,
+  updateProject,
+  deleteProject,
+  saveDailyReview,
+  getReviewHistory,
+  generateMorningBrief
 } from "./server/db/app-queries.mjs";
 import { buildNowBriefing } from "./server/db/now-query.mjs";
 import { seedDatabase } from "./server/db/seed.mjs";
@@ -56,7 +69,6 @@ const mockDataDir = join(rootDir, "server", "mock-data");
 const port = Number.parseInt(process.env.PORT || "3000", 10);
 const host = process.env.HOST || "0.0.0.0";
 const isProduction = process.env.NODE_ENV === "production";
-const askResponses = await loadMockJson("ask-responses.json");
 
 await seedDatabase();
 
@@ -150,8 +162,6 @@ app.post("/api/focus-sessions/:id/complete", async (request, reply) => {
 
   return result;
 });
-
-app.post("/api/inbox/organize", async () => organizeInboxIntoProposal());
 
 app.get("/api/reminders", async () => getReminders());
 
@@ -296,6 +306,38 @@ app.delete("/api/deadlines/:id", async (request, reply) => {
 
 app.get("/api/habits", async () => getHabitDashboard());
 
+app.post("/api/habits", async (request, reply) => {
+  const body = typeof request.body === "object" && request.body !== null ? request.body : {};
+  const result = createHabit(body);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
+
+app.patch("/api/habits/:id", async (request, reply) => {
+  const habitId = typeof request.params?.id === "string" ? request.params.id : "";
+  const body = typeof request.body === "object" && request.body !== null ? request.body : {};
+  const result = updateHabit(habitId, body);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
+
+app.delete("/api/habits/:id", async (request, reply) => {
+  const habitId = typeof request.params?.id === "string" ? request.params.id : "";
+  const result = deleteHabit(habitId);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
+
+app.get("/api/habits/insight", async () => {
+  return { insight: await getHabitsInsight() };
+});
+
 app.post("/api/habits/:id/log", async (request, reply) => {
   const habitId = typeof request.params?.id === "string" ? request.params.id : "";
   const result = logHabitToday(habitId);
@@ -308,6 +350,83 @@ app.post("/api/habits/:id/log", async (request, reply) => {
 });
 
 app.get("/api/goals", async () => getGoalsOverview());
+
+app.post("/api/goals", async (request, reply) => {
+  const body = typeof request.body === "object" && request.body !== null ? request.body : {};
+  const result = createGoal(body);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
+
+app.patch("/api/goals/:id", async (request, reply) => {
+  const goalId = typeof request.params?.id === "string" ? request.params.id : "";
+  const body = typeof request.body === "object" && request.body !== null ? request.body : {};
+  const result = updateGoal(goalId, body);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
+
+app.delete("/api/goals/:id", async (request, reply) => {
+  const goalId = typeof request.params?.id === "string" ? request.params.id : "";
+  const result = deleteGoal(goalId);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
+
+app.post("/api/projects", async (request, reply) => {
+  const body = typeof request.body === "object" && request.body !== null ? request.body : {};
+  const result = createProject(body);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
+
+app.patch("/api/projects/:id", async (request, reply) => {
+  const projectId = typeof request.params?.id === "string" ? request.params.id : "";
+  const body = typeof request.body === "object" && request.body !== null ? request.body : {};
+  const result = updateProject(projectId, body);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
+
+app.delete("/api/projects/:id", async (request, reply) => {
+  const projectId = typeof request.params?.id === "string" ? request.params.id : "";
+  const result = deleteProject(projectId);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
+
+app.get("/api/reviews/history", async () => getReviewHistory());
+
+app.post("/api/reviews", async (request, reply) => {
+  const body = typeof request.body === "object" && request.body !== null ? request.body : {};
+  const result = saveDailyReview(body);
+  if (!result.ok) {
+    return reply.code(400).send(result);
+  }
+  return result;
+});
+
+app.get("/api/today/brief", async () => {
+  return { brief: await generateMorningBrief() };
+});
+
+app.get("/api/system/backup", async (request, reply) => {
+  reply.header("Content-Disposition", 'attachment; filename="helpme.sqlite"');
+  reply.type("application/x-sqlite3");
+  return createReadStream(dbPath);
+});
 
 app.get("/api/review", async () => getReviewSummary());
 
@@ -349,12 +468,6 @@ app.post("/api/ai/proposals/:id/reject", async (request, reply) => {
   }
 
   return result;
-});
-
-app.post("/api/ask", async (request) => {
-  const body = typeof request.body === "object" && request.body !== null ? request.body : {};
-  const message = typeof body.message === "string" ? body.message.trim() : "";
-  return handleAiCommand(message || "Vì sao chọn việc này?");
 });
 
 if (isProduction) {
@@ -401,28 +514,6 @@ if (isProduction) {
 }
 
 await app.listen({ port, host });
-
-function buildMockAnswer(message) {
-  if (!message) {
-    return askResponses.empty;
-  }
-
-  const normalized = message.toLowerCase();
-
-  if (normalized.includes("30")) {
-    return askResponses.short_time;
-  }
-
-  if (normalized.includes("hidden") || normalized.includes("task")) {
-    return askResponses.hidden_tasks;
-  }
-
-  if (normalized.includes("drift") || normalized.includes("goal")) {
-    return askResponses.goal_drift;
-  }
-
-  return askResponses.default;
-}
 
 async function loadMockJson(fileName) {
   const fileContent = await readFile(join(mockDataDir, fileName), "utf8");

@@ -193,6 +193,26 @@ export const settings = sqliteTable("settings", {
   updatedAt: text("updated_at").notNull()
 });
 
+export const dailyReviews = sqliteTable("daily_reviews", {
+  id: text("id").primaryKey(),
+  reviewDate: text("review_date").notNull().unique(),
+  completedCount: integer("completed_count").notNull().default(0),
+  unfinishedCount: integer("unfinished_count").notNull().default(0),
+  energyValue: text("energy_value").notNull(),
+  summary: text("summary").notNull(),
+  reflection: text("reflection"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull()
+});
+
+export const chatMessages = sqliteTable("chat_messages", {
+  id: text("id").primaryKey(),
+  role: text("role").notNull(), // 'user' or 'assistant'
+  content: text("content").notNull(),
+  proposalId: text("proposal_id"), // optional link to ai_action_proposals.id
+  createdAt: text("created_at").notNull()
+});
+
 export const schema = {
   goals,
   projects,
@@ -210,5 +230,7 @@ export const schema = {
   aiActivityLogs,
   aiRuns,
   aiActionProposals,
-  settings
+  settings,
+  dailyReviews,
+  chatMessages
 };

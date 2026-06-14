@@ -388,6 +388,8 @@ export type HabitData = Array<{
   logged_count: number;
   completion_rate: number;
   insight: string;
+  status: "active" | "paused";
+  weekly_history: boolean[];
 }>;
 
 export type GoalsData = Array<{
@@ -498,6 +500,18 @@ export type AiActionProposal = {
   };
   status: "pending" | "confirmed" | "cancelled";
   created_at: string;
+};
+
+export type DailyReviewHistoryItem = {
+  id: string;
+  review_date: string;
+  completed_count: number;
+  unfinished_count: number;
+  energy_value: string;
+  summary: string;
+  reflection: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type AppSettings = {

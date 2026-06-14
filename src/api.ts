@@ -146,25 +146,6 @@ export async function snoozeReminderApi(reminderId: string, minutes = 15): Promi
   });
 }
 
-export async function createReminderApi(reminder: any): Promise<any> {
-  return requestJson("/api/reminders", "HelpMe could not create reminder.", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(reminder)
-  });
-}
-
-export async function deleteReminderApi(reminderId: string): Promise<any> {
-  return requestJson(`/api/reminders/${reminderId}`, "HelpMe could not delete reminder.", {
-    method: "DELETE",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({})
-  });
-}
 
 export async function fetchCalendarApi(mode = "day", startDate?: string): Promise<CalendarData> {
   const params = new URLSearchParams();
@@ -277,6 +258,120 @@ export async function deleteDeadlineApi(deadlineId: string): Promise<any> {
     },
     body: JSON.stringify({})
   });
+}
+
+export async function createHabitApi(habit: any): Promise<any> {
+  return requestJson("/api/habits", "HelpMe could not create habit.", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(habit)
+  });
+}
+
+export async function updateHabitApi(habitId: string, habit: any): Promise<any> {
+  return requestJson(`/api/habits/${habitId}`, "HelpMe could not update habit.", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(habit)
+  });
+}
+
+export async function deleteHabitApi(habitId: string): Promise<any> {
+  return requestJson(`/api/habits/${habitId}`, "HelpMe could not delete habit.", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({})
+  });
+}
+
+export async function fetchHabitInsightApi(): Promise<string> {
+  const res = await requestJson<{ insight: string }>("/api/habits/insight", "Unable to load habit insight.");
+  return res.insight;
+}
+
+export async function createGoalApi(goal: any): Promise<any> {
+  return requestJson("/api/goals", "HelpMe could not create goal.", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(goal)
+  });
+}
+
+export async function updateGoalApi(goalId: string, goal: any): Promise<any> {
+  return requestJson(`/api/goals/${goalId}`, "HelpMe could not update goal.", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(goal)
+  });
+}
+
+export async function deleteGoalApi(goalId: string): Promise<any> {
+  return requestJson(`/api/goals/${goalId}`, "HelpMe could not delete goal.", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({})
+  });
+}
+
+export async function createProjectApi(project: any): Promise<any> {
+  return requestJson("/api/projects", "HelpMe could not create project.", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(project)
+  });
+}
+
+export async function updateProjectApi(projectId: string, project: any): Promise<any> {
+  return requestJson(`/api/projects/${projectId}`, "HelpMe could not update project.", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(project)
+  });
+}
+
+export async function deleteProjectApi(projectId: string): Promise<any> {
+  return requestJson(`/api/projects/${projectId}`, "HelpMe could not delete project.", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({})
+  });
+}
+
+export async function saveReviewApi(review: any): Promise<any> {
+  return requestJson("/api/reviews", "HelpMe could not save daily review.", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(review)
+  });
+}
+
+export async function fetchReviewHistoryApi(): Promise<any[]> {
+  return requestJson<any[]>("/api/reviews/history", "Unable to load review history.");
+}
+
+export async function fetchMorningBriefApi(): Promise<string> {
+  const res = await requestJson<{ brief: string }>("/api/today/brief", "Unable to load morning brief.");
+  return res.brief;
 }
 
 async function requestJson<T>(url: string, errorMessage: string, init?: RequestInit): Promise<T> {
